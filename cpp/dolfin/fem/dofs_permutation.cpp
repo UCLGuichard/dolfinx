@@ -982,8 +982,9 @@ compute_reversals_triangle(const mesh::Mesh& mesh,
           reverse_dofs[cell_n * ndofs + edge(i)] = true;
       }
     // Set the orders for the face rotation and reflection
-    const std::array<int, 2> tri_orders
-        = calculate_triangle_orders(vertices[0], vertices[1], vertices[2]);
+    const std::array<std::int8_t, 2> tri_orders
+        = calculate_triangle_orders<std::int32_t>(vertices[0], vertices[1],
+                                                  vertices[2]);
     if (tri_orders[1] > 0)
     {
       const Eigen::Array<int, Eigen::Dynamic, 1> face
@@ -1029,9 +1030,10 @@ compute_reversals_tetrahedron(const mesh::Mesh& mesh,
 
     for (int face_n = 0; face_n < 4; ++face_n)
     {
-      const std::array<int, 2> tri_orders = calculate_triangle_orders(
-          vertices[faces[face_n][0]], vertices[faces[face_n][1]],
-          vertices[faces[face_n][2]]);
+      const std::array<std::int8_t, 2> tri_orders
+          = calculate_triangle_orders<std::int32_t>(vertices[faces[face_n][0]],
+                                                    vertices[faces[face_n][1]],
+                                                    vertices[faces[face_n][2]]);
       if (tri_orders[1])
       {
         const Eigen::Array<int, Eigen::Dynamic, 1> face
@@ -1041,8 +1043,9 @@ compute_reversals_tetrahedron(const mesh::Mesh& mesh,
       }
     }
     // Set the orders for the volume rotations and reflections
-    const std::array<int, 4> tet_orders = calculate_tetrahedron_orders(
-        vertices[0], vertices[1], vertices[2], vertices[3]);
+    const std::array<std::int8_t, 4> tet_orders
+        = calculate_tetrahedron_orders<std::int32_t>(vertices[0], vertices[1],
+                                                     vertices[2], vertices[3]);
     if (tet_orders[3])
     {
       const Eigen::Array<int, Eigen::Dynamic, 1> volume
