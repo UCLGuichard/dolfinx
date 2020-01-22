@@ -78,10 +78,11 @@ void _lift_bc_cells(
       Ae;
   Eigen::Matrix<PetscScalar, Eigen::Dynamic, 1> be;
 
+  if (!a.all_constants_set())
+    throw std::runtime_error("Unset constant in Form");
   const std::vector<
       std::pair<std::string, std::shared_ptr<const function::Constant>>>
       constants = a.constants();
-
   std::vector<PetscScalar> constant_values;
   for (auto const& constant : constants)
   {
@@ -93,7 +94,7 @@ void _lift_bc_cells(
   }
 
   // Iterate over all cells
-  const int tdim = mesh.geometry().dim();
+  const int tdim = mesh.topology().dim();
   const int orient = 0;
   for (const mesh::MeshEntity& cell : mesh::MeshRange(mesh, tdim))
   {
@@ -640,8 +641,6 @@ void fem::impl::lift_bc(
         bc_values1,
     const std::vector<bool>& bc_markers1, double scale)
 {
-  // FIXME: add lifting over exterior facets
-
   const Eigen::Matrix<PetscScalar, Eigen::Dynamic, 1> x0(0);
   if (a.integrals().num_integrals(fem::FormIntegrals::Type::cell) > 0)
     _lift_bc_cells(b, a, bc_values1, bc_markers1, x0, scale);
