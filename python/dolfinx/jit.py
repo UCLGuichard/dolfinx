@@ -111,16 +111,23 @@ def ffc_jit(ufl_object, form_compiler_parameters=None):
     cache_dir = os.getenv('FENICS_CACHE_DIR', cache_dir)
     cache_dir = Path(cache_dir).expanduser()
 
+    # Check environment for timeout override
+    timeout = os.getenv('FENICS_JIT_TIMEOUT', 10)
+    print("JIT timeout = ", timeout)
+
     # Switch on type and compile, returning cffi object
     if isinstance(ufl_object, ufl.Form):
-        r = ffc.codegeneration.jit.compile_forms([ufl_object], parameters=p, timeout=20, cache_dir=cache_dir, **cffi_options)
+        r = ffc.codegeneration.jit.compile_forms([ufl_object], parameters=p,
+                                                 timeout=timeout, cache_dir=cache_dir, **cffi_options)
     elif isinstance(ufl_object, ufl.FiniteElementBase):
-        r = ffc.codegeneration.jit.compile_elements([ufl_object], parameters=p, timeout=20, cache_dir=cache_dir, **cffi_options)
+        r = ffc.codegeneration.jit.compile_elements([ufl_object], parameters=p,
+                                                    timeout=timeout, cache_dir=cache_dir, **cffi_options)
     elif isinstance(ufl_object, ufl.Mesh):
-        r = ffc.codegeneration.jit.compile_coordinate_maps(
-            [ufl_object], parameters=p, timeout=20, cache_dir=cache_dir, **cffi_options)
+        r = ffc.codegeneration.jit.compile_coordinate_maps([ufl_object], parameters=p,
+                                                           timeout=timeout, cache_dir=cache_dir, **cffi_options)
     elif isinstance(ufl_object, tuple) and isinstance(ufl_object[0], ufl.core.expr.Expr):
-        r = ffc.codegeneration.jit.compile_expressions([ufl_object], parameters=p, timeout=20, cache_dir=cache_dir, **cffi_options)
+        r = ffc.codegeneration.jit.compile_expressions([ufl_object], parameters=p,
+                                                       timeout=timeout, cache_dir=cache_dir, **cffi_options)
     else:
         raise TypeError(type(ufl_object))
 
