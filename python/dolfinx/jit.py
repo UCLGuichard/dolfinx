@@ -112,7 +112,7 @@ def ffc_jit(ufl_object, form_compiler_parameters=None):
     cache_dir = Path(cache_dir).expanduser()
 
     # Check environment for timeout override
-    timeout = os.getenv('FENICS_JIT_TIMEOUT', 10)
+    timeout = int(os.getenv('FENICS_JIT_TIMEOUT', 10))
     print("JIT timeout = ", timeout)
 
     # Switch on type and compile, returning cffi object
