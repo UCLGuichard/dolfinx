@@ -765,6 +765,9 @@ mesh::Mesh Partitioning::build_from_partition(
 
   common::Timer timer("Distribute mesh cells");
 
+  MPI_Comm neighbour_comm = cell_partition.neighbour_comm(comm);
+  assert(dolfinx::MPI::size(comm) == dolfinx::MPI::size(neighbour_comm));
+
   // Check that we have some ghost information.
   int all_ghosts = dolfinx::MPI::sum(comm, cell_partition.num_ghosts());
   if (all_ghosts == 0 and ghost_mode != mesh::GhostMode::none)

@@ -6,12 +6,8 @@
 
 #include "PartitionData.h"
 #include <algorithm>
+#include <set>
 #include <sstream>
-
-extern "C"
-{
-#include <ptscotch.h>
-}
 
 using namespace dolfinx;
 using namespace dolfinx::mesh;
@@ -62,150 +58,70 @@ std::int32_t PartitionData::num_ghosts() const
   return _dest_processes.size() - _offset.size() + 1;
 }
 //-----------------------------------------------------------------------------
-void PartitionData::graph(MPI_Comm mpi_comm)
+MPI_Comm PartitionData::neighbour_comm(MPI_Comm mpi_comm) const
 {
-  const int mpi_size = MPI::size(mpi_comm);
+  const int num_processes = MPI::size(mpi_comm);
   const int mpi_rank = MPI::rank(mpi_comm);
 
-  // Make map of connections between processes {proc1, proc2} -> num_connections
-  std::map<std::pair<int, int>, int> neighbour_info;
-  for (std::size_t i = 0; i < _offset.size() - 1; ++i)
+  std::int32_t partition_size = _offset.size() - 1;
+
+  std::vector<std::set<std::int32_t>> edges_per_proc(num_processes);
+  for (std::int32_t i = 0; i < partition_size; i++)
   {
-    if (_offset[i + 1] - _offset[i] > 1)
+    std::int32_t num_procs = _offset[i + 1] - _offset[i];
+    std::vector<std::int32_t> procs(_dest_processes.data() + _offset[i],
+                                    _dest_processes.data() + _offset[i]
+                                        + num_procs);
+    for (std::int32_t j = 0; j < num_procs; j++)
     {
-      for (int j = _offset[i]; j < _offset[i + 1]; ++j)
-        for (int k = j + 1; k < _offset[i + 1]; ++k)
-        {
-          std::pair<int, int> idx(_dest_processes[j], _dest_processes[k]);
-          neighbour_info[idx]++;
-          idx = {idx.second, idx.first};
-          neighbour_info[idx]++;
-        }
+      edges_per_proc[procs[j]].insert(procs.begin(), procs.end());
     }
   }
 
-  // Accumulate all connectivity on process 0
-  std::vector<int> send_data;
-  std::vector<int> recv_data;
-  for (auto& info : neighbour_info)
+  std::vector<std::vector<std::int32_t>> send_buffer(num_processes);
+  std::vector<std::vector<std::int32_t>> received_buffer(num_processes);
+  for (std::int32_t i = 0; i < num_processes; i++)
   {
-    send_data.push_back(info.first.first);
-    send_data.push_back(info.first.second);
-    send_data.push_back(info.second);
-  }
-  MPI::gather(mpi_comm, send_data, recv_data);
-
-  MPI_Comm shmComm;
-  MPI_Comm_split_type(mpi_comm, MPI_COMM_TYPE_SHARED, 0, MPI_INFO_NULL,
-                      &shmComm);
-
-  std::cout << "shmComm = " << MPI::rank(shmComm) << "/" << MPI::size(shmComm)
-            << "\n";
-
-  const int rank0 = (int)(MPI::rank(shmComm) == 0);
-  const int nnodes = MPI::sum(mpi_comm, rank0);
-
-  std::vector<int> renumbering(mpi_size);
-
-  if (mpi_rank == 0)
-  {
-    std::vector<std::map<int, int>> edgeconn(mpi_size);
-    for (std::size_t i = 0; i < recv_data.size(); i += 3)
-    {
-      std::map<int, int>& ec = edgeconn[recv_data[i]];
-      auto it = ec.find(recv_data[i + 1]);
-      if (it == ec.end())
-        ec.insert({recv_data[i + 1], recv_data[i + 2]});
-      else
-        it->second += recv_data[i + 2];
-    }
-
-    std::vector<SCOTCH_Num> vertloctab = {0};
-    std::vector<SCOTCH_Num> edgeloctab;
-    std::vector<SCOTCH_Num> edloloctab;
-    for (auto& node : edgeconn)
-    {
-      for (const auto& remote : node)
-      {
-        edgeloctab.push_back(remote.first);
-        edloloctab.push_back(remote.second);
-      }
-      vertloctab.push_back(edgeloctab.size());
-    }
-    assert((int)vertloctab.size() == mpi_size + 1);
-    const SCOTCH_Num vertlocnbr = mpi_size;
-
-    std::cout << "vertloctab =";
-    for (auto q : vertloctab)
-      std::cout << q << ",";
-    std::cout << "\n";
-
-    std::cout << "edgeloctab =";
-    for (auto q : edgeloctab)
-      std::cout << q << ",";
-    std::cout << "\n";
-
-    std::cout << "edloloctab =";
-    for (auto q : edloloctab)
-      std::cout << q << ",";
-    std::cout << "\n";
-
-    SCOTCH_Dgraph dgrafdat;
-    if (SCOTCH_dgraphInit(&dgrafdat, MPI_COMM_SELF) != 0)
-      throw std::runtime_error("Error initializing SCOTCH graph");
-
-    if (SCOTCH_dgraphBuild(
-            &dgrafdat, 0, vertlocnbr, vertlocnbr,
-            const_cast<SCOTCH_Num*>(vertloctab.data()), nullptr, nullptr,
-            nullptr, edgeloctab.size(), edgeloctab.size(),
-            const_cast<SCOTCH_Num*>(edgeloctab.data()), nullptr, nullptr))
-    {
-      throw std::runtime_error("Error building SCOTCH graph");
-    }
-
-    SCOTCH_Strat strat;
-    SCOTCH_stratInit(&strat);
-
-    // Set SCOTCH strategy
-    int nparts = nnodes;
-    SCOTCH_stratDgraphMapBuild(&strat, SCOTCH_STRATQUALITY, nparts, nparts,
-                               0.0);
-
-    std::vector<SCOTCH_Num> node_partition(mpi_size);
-
-    SCOTCH_randomReset();
-
-    // Partition graph
-    if (SCOTCH_dgraphPart(&dgrafdat, nparts, &strat, node_partition.data()))
-      throw std::runtime_error("Error during SCOTCH partitioning");
-
-    std::cout << "node partition = ";
-    for (auto q : node_partition)
-      std::cout << q << ", ";
-    std::cout << "\n";
-
-    int c = 0;
-    for (int i = 0; i < nparts; ++i)
-    {
-      for (int j = 0; j < mpi_size; ++j)
-      {
-        if (node_partition[j] == i)
-        {
-          renumbering[j] = c;
-          ++c;
-        }
-      }
-    }
-
-    std::cout << "renumbering = ";
-    for (auto q : renumbering)
-      std::cout << q << ", ";
-    std::cout << "\n";
+    send_buffer[i].assign(edges_per_proc[i].begin(), edges_per_proc[i].end());
   }
 
-  MPI::broadcast(mpi_comm, renumbering);
+  dolfinx::MPI::all_to_all(mpi_comm, send_buffer, received_buffer);
 
-  // Renumber
-  for (auto& q : _dest_processes)
-    q = renumbering[q];
+  std::set<std::int32_t> neighbors_set(send_buffer[mpi_rank].begin(),
+                                       send_buffer[mpi_rank].end());
+  for (std::int32_t i = 0; i < num_processes; i++)
+    neighbors_set.insert(received_buffer[i].begin(), received_buffer[i].end());
+
+  neighbors_set.erase(mpi_rank);
+  std::vector<std::int32_t> neighbors(neighbors_set.begin(),
+                                      neighbors_set.end());
+
+  MPI_Comm neighbour_comm;
+
+  // Create neighbourhood communicator. No communication is needed to
+  // build the graph with complete adjacency information
+  MPI_Dist_graph_create_adjacent(mpi_comm, neighbors.size(), neighbors.data(),
+                                 MPI_UNWEIGHTED, neighbors.size(),
+                                 neighbors.data(), MPI_UNWEIGHTED,
+                                 MPI_INFO_NULL, false, &neighbour_comm);
+
+#if DEBUG
+  {
+    int indegree(-1), outdegree(-2), weighted(-1);
+    MPI_Dist_graph_neighbors_count(neighbour_comm, &indegree, &outdegree,
+                                   &weighted);
+    assert(indegree == outdegree);
+    std::vector<int> neighbours(indegree), neighbours1(indegree),
+        weights(indegree), weights1(indegree);
+
+    MPI_Dist_graph_neighbors(neighbour_comm, indegree, neighbours.data(),
+                             weights.data(), outdegree, neighbours1.data(),
+                             weights1.data());
+
+    assert(
+        std::equal(neighbours.begin(), neighbours.end(), neighbours1.begin()));
+  }
+#endif
+
+  return neighbour_comm;
 }

@@ -71,7 +71,7 @@ public:
 
   /// Make a graph of the partition data and renumber so that partitions
   /// on the same node are closest together.
-  void graph(MPI_Comm mpi_comm);
+  MPI_Comm neighbour_comm(MPI_Comm mpi_comm) const;
 
 private:
   // Contiguous list of processes, indexed with offset, below
