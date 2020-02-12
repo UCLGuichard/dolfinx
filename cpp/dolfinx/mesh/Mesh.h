@@ -17,6 +17,11 @@
 namespace dolfinx
 {
 
+namespace common
+{
+class IndexMap;
+}
+
 namespace function
 {
 class Function;
@@ -97,7 +102,8 @@ public:
                                            Eigen::Dynamic, Eigen::RowMajor>>&
            cells,
        const std::vector<std::int64_t>& global_cell_indices,
-       const GhostMode ghost_mode, std::int32_t num_ghost_cells = 0);
+       const GhostMode ghost_mode,
+       std::shared_ptr<common::IndexMap> cell_index_map = nullptr);
 
   /// Copy constructor
   /// @param[in] mesh Mesh to be copied

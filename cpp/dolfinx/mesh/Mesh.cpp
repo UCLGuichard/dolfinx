@@ -234,7 +234,8 @@ Mesh::Mesh(
     const Eigen::Ref<const Eigen::Array<
         std::int64_t, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>& cells,
     const std::vector<std::int64_t>& global_cell_indices,
-    const GhostMode ghost_mode, std::int32_t num_ghost_cells)
+    const GhostMode ghost_mode,
+    std::shared_ptr<common::IndexMap> cell_index_map)
     : _cell_type(type), _degree(1), _mpi_comm(comm), _ghost_mode(ghost_mode),
       _unique_id(common::UniqueIdGenerator::id())
 {
@@ -253,11 +254,6 @@ Mesh::Mesh(
 
   // Get number of nodes (global)
   const std::uint64_t num_points_global = MPI::sum(comm, points.rows());
-
-  // Number of local cells (not including ghosts)
-  const std::int32_t num_cells = cells.rows();
-  assert(num_ghost_cells <= num_cells);
-  const std::int32_t num_cells_local = num_cells - num_ghost_cells;
 
   // Compute node local-to-global map from global indices, and compute
   // cell topology using new local indices
@@ -334,23 +330,25 @@ Mesh::Mesh(
   _topology->set_connectivity(c0, 0, 0);
 
   // Initialise cell topology
-  Eigen::Array<std::int64_t, Eigen::Dynamic, 1> cell_ghosts(num_ghost_cells);
-  if ((int)global_cell_indices.size() == (num_cells_local + num_ghost_cells))
-    std::copy(global_cell_indices.begin() + num_cells_local,
-              global_cell_indices.end(), cell_ghosts.data());
-
-  auto cell_index_map = std::make_shared<common::IndexMap>(
-      _mpi_comm.comm(), num_cells_local, cell_ghosts, 1);
-  _topology->set_index_map(tdim, cell_index_map);
+  if (!cell_index_map)
+  {
+    assert(ghost_mode == mesh::GhostMode::none);
+    Eigen::Array<std::int64_t, Eigen::Dynamic, 1> ghost_cells(0);
+    std::shared_ptr<common::IndexMap> im = std::make_shared<common::IndexMap>(
+        comm, cells.rows(), ghost_cells, 1);
+    _topology->set_index_map(tdim, im);
+  }
+  else
+    _topology->set_index_map(tdim, cell_index_map);
 
   auto cv = std::make_shared<graph::AdjacencyList<std::int32_t>>(vertex_cols);
-
   _topology->set_connectivity(cv, tdim, 0);
 
   // Global cell indices - construct if none given
   if (global_cell_indices.empty())
   {
     // FIXME: Should global_cell_indices ever be empty?
+    const std::int32_t num_cells = cells.rows();
     const std::int64_t global_cell_offset
         = MPI::global_offset(comm, num_cells, true);
     std::vector<std::int64_t> global_indices(num_cells, 0);

@@ -812,10 +812,8 @@ mesh::Mesh Partitioning::build_from_partition(
   timer.stop();
 
   // Build mesh from points and distributed cells
-  const std::int32_t num_ghosts = index_map->num_ghosts();
-
   mesh::Mesh mesh(comm, cell_type, points, new_cell_vertices,
-                  new_global_cell_indices, ghost_mode, num_ghosts);
+                  new_global_cell_indices, ghost_mode, index_map);
 
   if (ghost_mode != mesh::GhostMode::none)
   {
