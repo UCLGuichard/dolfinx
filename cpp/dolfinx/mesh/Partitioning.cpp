@@ -786,7 +786,7 @@ mesh::Mesh Partitioning::build_from_partition(
   std::int32_t num_regular_cells;
   std::tie(new_cell_vertices, new_global_cell_indices, shared_cells,
            num_regular_cells)
-      = distribute_cells(comm, cell_vertices, global_cell_indices,
+      = distribute_cells(neighbour_comm, cell_vertices, global_cell_indices,
                          cell_partition);
 
   if (ghost_mode == mesh::GhostMode::shared_vertex)
