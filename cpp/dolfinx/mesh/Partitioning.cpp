@@ -146,7 +146,7 @@ distribute_cells(
 
   // Calculate local range of global indices
   std::vector<std::int32_t> local_sizes;
-  MPI::all_gather(mpi_comm, local_count, local_sizes);
+  dolfinx::MPI::all_gather(mpi_comm, local_count, local_sizes);
   std::vector<std::int64_t> ranges(mpi_size + 1, 0);
   std::partial_sum(local_sizes.begin(), local_sizes.end(), ranges.begin() + 1);
   std::vector<std::int64_t> new_global_cell_indices(all_count, -1);
@@ -252,8 +252,8 @@ distribute_cells(
   }
   std::vector<int> recv_offsets;
   std::vector<std::int64_t> recv_data;
-  MPI::neighbor_all_to_all(neighbour_comm, send_offsets, send_data,
-                           recv_offsets, recv_data);
+  dolfinx::MPI::neighbor_all_to_all(neighbour_comm, send_offsets, send_data,
+                                    recv_offsets, recv_data);
   MPI_Comm_free(&neighbour_comm);
 
   std::map<std::int64_t, std::int32_t> tag_to_position;
@@ -502,7 +502,7 @@ Partitioning::distribute_points(
 
   // Compute where (process number) the points we need are located
   std::vector<std::int64_t> ranges(mpi_size);
-  MPI::all_gather(comm, (std::int64_t)points.rows(), ranges);
+  dolfinx::MPI::all_gather(comm, (std::int64_t)points.rows(), ranges);
   for (std::size_t i = 1; i < ranges.size(); ++i)
     ranges[i] += ranges[i - 1];
   ranges.insert(ranges.begin(), 0);

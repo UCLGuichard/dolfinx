@@ -6,8 +6,8 @@
 
 #pragma once
 
-#include <dolfin/common/MPI.h>
 #include <cstdint>
+#include <dolfinx/common/MPI.h>
 #include <map>
 #include <utility>
 #include <vector>
@@ -69,11 +69,9 @@ public:
   /// process. Useful for testing
   std::int32_t num_ghosts() const;
 
-
   /// Make a graph of the partition data and renumber so that partitions
   /// on the same node are closest together.
   void graph(MPI_Comm mpi_comm);
-
 
 private:
   // Contiguous list of processes, indexed with offset, below
