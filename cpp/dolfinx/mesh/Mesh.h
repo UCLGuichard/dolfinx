@@ -93,8 +93,7 @@ public:
   ///                                constructed, beginning from 0 on
   ///                                process 0.
   /// @param[in] ghost_mode The ghost mode
-  /// @param[in] num_ghost_cells Number of ghost cells on this process
-  ///                            (must be at end of list of cells)
+  /// @param[in] cell_index_map IndexMap for cell ghosting
   Mesh(MPI_Comm comm, mesh::CellType type,
        const Eigen::Ref<const Eigen::Array<
            double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>& points,
