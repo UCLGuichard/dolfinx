@@ -1,4 +1,5 @@
-// Copyright (C) 2008-2014 Niclas Jansson, Ola Skavhaug, Anders Logg,
+// Copyright (C) 2008-2020 Niclas Jansson, Ola Skavhaug, Anders Logg,
+// Chris Richardson, Garth Wells and Igor Baratta
 //
 // This file is part of DOLFINX (https://www.fenicsproject.org)
 //
@@ -383,14 +384,14 @@ void distribute_cell_layer(
   // Reset map
   sh_vert_to_cell.clear();
   std::vector<std::int64_t> cell_set;
-  for (int i = 0; i < mpi_size; ++i)
+  for (int p = 0; p < mpi_size; ++p)
   {
-    const std::vector<std::int64_t>& recv_i = recv_vertcells[i];
-    for (auto q = recv_i.begin(); q != recv_i.end(); q += num_cell_vertices + 1)
+    const std::vector<std::int64_t>& recv_p = recv_vertcells[p];
+    for (auto q = recv_p.begin(); q != recv_p.end(); q += num_cell_vertices + 1)
     {
       const std::size_t vertex_index = *(q + 1);
       // Packing: [owner, cell_index, this_vertex, [other_vertices]]
-      cell_set = {i};
+      cell_set = {p};
       cell_set.insert(cell_set.end(), q, q + num_cell_vertices + 1);
 
       // Look for vertex in map, and add the attached cell
