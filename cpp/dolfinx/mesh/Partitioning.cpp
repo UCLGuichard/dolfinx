@@ -299,12 +299,12 @@ distribute_cells(
 // FIXME: shared_cells, cell_vertices, global_cell_indices and
 // cell_partition are all modified by this function.
 void distribute_cell_layer(
-    MPI_Comm mpi_comm, const int num_regular_cells,
+    MPI_Comm mpi_comm,
     std::map<std::int32_t, std::set<std::int32_t>>& shared_cells,
     Eigen::Array<std::int64_t, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>&
         cell_vertices,
     std::vector<std::int64_t>& global_cell_indices,
-    std::vector<int>& cell_partition)
+    std::shared_ptr<common::IndexMap> cell_index_map)
 {
   common::Timer timer("Distribute cell layer");
 
@@ -318,6 +318,9 @@ void distribute_cell_layer(
   std::map<std::int64_t, int> cell_global_to_local;
 
   // Iterate only over ghost cells
+  const std::int32_t num_regular_cells = cell_index_map->size_local();
+  assert(cell_vertices.rows()
+         == num_regular_cells + cell_index_map->num_ghosts());
   for (Eigen::Index i = num_regular_cells; i < cell_vertices.rows(); ++i)
   {
     // Add map entry for each vertex of ghost cells
@@ -326,7 +329,6 @@ void distribute_cell_layer(
       sh_vert_to_cell.insert(
           {cell_vertices(i, p), std::vector<std::int64_t>()});
     }
-
     cell_global_to_local.insert({global_cell_indices[i], i});
   }
 
@@ -425,7 +427,7 @@ void distribute_cell_layer(
   {
     for (auto q = p.begin(); q != p.end(); q += num_cell_vertices + 2)
     {
-      const std::int64_t owner = *q;
+      // const std::int64_t owner = *q;
       const std::int64_t cell_index = *(q + 1);
 
       auto cell_insert = cell_global_to_local.insert({cell_index, count});
@@ -433,7 +435,7 @@ void distribute_cell_layer(
       {
         shared_cells.insert({count, std::set<std::int32_t>()});
         global_cell_indices.push_back(cell_index);
-        cell_partition.push_back(owner);
+        // cell_partition.push_back(owner);
         ++count;
       }
     }
@@ -798,16 +800,13 @@ mesh::Mesh Partitioning::build_from_partition(
       = distribute_cells(comm, cell_vertices, global_cell_indices,
                          cell_partition, ghost_mode);
 
-  const std::int32_t num_regular_cells = index_map->size_local();
-
-  if (ghost_mode == mesh::GhostMode::shared_vertex)
+  if (false and ghost_mode == mesh::GhostMode::shared_vertex)
   {
     // Send/receive additional cells defined by connectivity to the shared
     // vertices.
     // FIXME: this needs attention
-    std::vector<int> dummy;
-    distribute_cell_layer(comm, num_regular_cells, shared_cells,
-                          new_cell_vertices, new_global_cell_indices, dummy);
+    distribute_cell_layer(comm, shared_cells, new_cell_vertices,
+                          new_global_cell_indices, index_map);
   }
   timer.stop();
 

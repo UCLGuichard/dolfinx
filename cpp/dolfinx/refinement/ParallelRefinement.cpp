@@ -32,8 +32,9 @@ ParallelRefinement::ParallelRefinement(const mesh::Mesh& mesh)
   // Create a global-to-local map for shared edges
   const std::map<std::int32_t, std::set<std::int32_t>>& shared_edges
       = _mesh.topology().shared_entities(1);
-  const std::vector<std::int64_t>& global_edge_indices
-      = _mesh.topology().global_indices(1);
+
+  const std::vector<std::int64_t> global_edge_indices
+      = _mesh.topology().index_map(1)->global_indices(false);
 
   for (const auto& edge : shared_edges)
   {
@@ -66,8 +67,8 @@ void ParallelRefinement::mark(std::int32_t edge_index)
   auto map_it = shared_edges.find(edge_index);
   if (map_it != shared_edges.end())
   {
-    const std::vector<std::int64_t>& global_edge_indices
-        = _mesh.topology().global_indices(1);
+    const std::vector<std::int64_t> global_edge_indices
+        = _mesh.topology().index_map(1)->global_indices(false);
     std::int64_t global_index = global_edge_indices[edge_index];
     for (int p : map_it->second)
       _marked_for_update[p].push_back(global_index);
@@ -169,8 +170,8 @@ void ParallelRefinement::create_new_vertices()
 
   const std::map<std::int32_t, std::set<std::int32_t>>& shared_edges
       = _mesh.topology().shared_entities(1);
-  const std::vector<std::int64_t>& global_edge_indices
-      = _mesh.topology().global_indices(1);
+  const std::vector<std::int64_t> global_edge_indices
+      = _mesh.topology().index_map(1)->global_indices(false);
 
   // Copy over existing mesh vertices
   _new_vertex_coordinates = std::vector<double>(
@@ -357,7 +358,7 @@ mesh::Mesh ParallelRefinement::partition(bool redistribute) const
                   points.leftCols(_mesh.geometry().dim()), cells,
                   global_cell_indices, _mesh.get_ghost_mode());
 
-  const int tdim  = mesh.topology().dim();
+  const int tdim = mesh.topology().dim();
   mesh.create_entities(tdim - 1);
   mesh.create_connectivity(tdim - 1, tdim);
   mesh::DistributedMeshTools::init_facet_cell_connections(mesh.mpi_comm(),
