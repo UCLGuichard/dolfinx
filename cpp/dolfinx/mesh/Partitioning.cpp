@@ -49,7 +49,7 @@ namespace
 std::tuple<
     Eigen::Array<std::int64_t, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>,
     std::vector<std::int64_t>, std::map<std::int32_t, std::set<std::int32_t>>,
-    std::int32_t>
+    std::shared_ptr<common::IndexMap>>
 distribute_cells(
     const MPI_Comm mpi_comm,
     const Eigen::Ref<const Eigen::Array<std::int64_t, Eigen::Dynamic,
@@ -260,7 +260,7 @@ distribute_cells(
   for (std::size_t i = 0; i < stored_tag.size(); ++i)
     tag_to_position.insert({stored_tag[i], i});
 
-  std::stringstream s;
+  Eigen::Array<std::int64_t, Eigen::Dynamic, 1> ghost_indices(ghost_count);
   for (std::size_t i = 0; i < neighbours.size(); ++i)
   {
     for (int j = recv_offsets[i]; j < recv_offsets[i + 1]; j += 2)
@@ -271,12 +271,16 @@ distribute_cells(
       const std::int32_t index = pos->second;
       assert(index >= local_count);
       new_global_cell_indices[index] = recv_data[j];
+      ghost_indices[index - local_count] = recv_data[j];
     }
   }
 
+  auto index_map = std::make_shared<common::IndexMap>(mpi_comm, local_count,
+                                                      ghost_indices, 1);
+
   return std::tuple(std::move(new_cell_vertices),
                     std::move(new_global_cell_indices), std::move(shared_cells),
-                    local_count);
+                    index_map);
 }
 //-----------------------------------------------------------------------------
 // Distribute additional cells implied by connectivity via vertex. The
@@ -780,11 +784,11 @@ mesh::Mesh Partitioning::build_from_partition(
       new_cell_vertices;
   std::vector<std::int64_t> new_global_cell_indices;
   std::map<std::int32_t, std::set<std::int32_t>> shared_cells;
-  std::int32_t num_regular_cells;
-  std::tie(new_cell_vertices, new_global_cell_indices, shared_cells,
-           num_regular_cells)
+  std::shared_ptr<common::IndexMap> index_map;
+  std::tie(new_cell_vertices, new_global_cell_indices, shared_cells, index_map)
       = distribute_cells(comm, cell_vertices, global_cell_indices,
                          cell_partition);
+  std::int32_t num_regular_cells = index_map->size_local();
 
   if (ghost_mode == mesh::GhostMode::shared_vertex)
   {
