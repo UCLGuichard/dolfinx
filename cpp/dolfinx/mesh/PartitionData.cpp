@@ -73,17 +73,14 @@ MPI_Comm PartitionData::neighbour_comm(MPI_Comm mpi_comm) const
                                     _dest_processes.data() + _offset[i]
                                         + num_procs);
     for (std::int32_t j = 0; j < num_procs; j++)
-    {
       edges_per_proc[procs[j]].insert(procs.begin(), procs.end());
-    }
   }
 
   std::vector<std::vector<std::int32_t>> send_buffer(num_processes);
   std::vector<std::vector<std::int32_t>> received_buffer(num_processes);
+
   for (std::int32_t i = 0; i < num_processes; i++)
-  {
     send_buffer[i].assign(edges_per_proc[i].begin(), edges_per_proc[i].end());
-  }
 
   dolfinx::MPI::all_to_all(mpi_comm, send_buffer, received_buffer);
 
@@ -117,9 +114,7 @@ MPI_Comm PartitionData::neighbour_comm(MPI_Comm mpi_comm) const
     MPI_Dist_graph_neighbors(neighbour_comm, indegree, neighbours.data(),
                              weights.data(), outdegree, neighbours1.data(),
                              weights1.data());
-
-    assert(
-        std::equal(neighbours.begin(), neighbours.end(), neighbours1.begin()));
+    assert(neighbours == neighbours1);
   }
 #endif
 
