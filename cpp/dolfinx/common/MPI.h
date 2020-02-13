@@ -110,8 +110,8 @@ public:
   /// entries, starting from zero.
   template <typename T>
   static void neighbor_all_to_all(MPI_Comm neighbor_comm,
-                                  const std::vector<std::vector<T>>& send_data,
-                                  std::vector<std::vector<T>>& recv_data);
+                                   const std::vector<std::vector<T>>& send_data,
+                                   std::vector<std::vector<T>>& recv_data);
 
   /// Return list of neighbours for a neighbourhood comm
   /// @param neighbor_comm
@@ -758,7 +758,7 @@ void dolfinx::MPI::neighbor_all_to_all(
   std::vector<int> data_size_send(neighbour_size);
   std::vector<int> data_offset_send(neighbour_size + 1, 0);
 
-  for (std::size_t p = 0; p < neighbour_size; ++p)
+  for (int p = 0; p < neighbour_size; ++p)
   {
     data_size_send[p] = recv_data[p].size();
     data_offset_send[p + 1] = data_offset_send[p] + data_size_send[p];
@@ -775,7 +775,7 @@ void dolfinx::MPI::neighbor_all_to_all(
   // Pack data and build receive offset
   std::vector<int> data_offset_recv(neighbour_size + 1, 0);
 
-  for (std::size_t p = 0; p < neighbour_size; ++p)
+  for (int p = 0; p < neighbour_size; ++p)
   {
     data_offset_recv[p + 1] = data_offset_recv[p] + data_size_recv[p];
     std::copy(send_data[p].begin(), send_data[p].end(),
@@ -786,12 +786,12 @@ void dolfinx::MPI::neighbor_all_to_all(
 
   MPI_Neighbor_alltoallv(
       send_data.data(), data_size_send.data(), data_offset_send.data(),
-      MPI::mpi_type<T>(), recv_data.data(), data_size_recv.data(),
+      MPI::mpi_type<T>(), data_recv.data(), data_size_recv.data(),
       data_offset_recv.data(), MPI::mpi_type<T>(), neighbor_comm);
 
-  for (std::size_t i = 0; i < neighbour_size; ++i)
-    recv_data[i].assign(recv_data.data() + data_offset_recv[i],
-                        recv_data.data() + data_offset_recv[i + 1]);
+  for (int i = 0; i < neighbour_size; ++i)
+    recv_data[i].assign(data_recv.data() + data_offset_recv[i],
+                        data_recv.data() + data_offset_recv[i + 1]);
 }
 
 } // namespace dolfinx

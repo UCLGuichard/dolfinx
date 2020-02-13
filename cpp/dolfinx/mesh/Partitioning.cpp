@@ -71,6 +71,11 @@ distribute_cells(
   const std::int32_t mpi_size = dolfinx::MPI::size(mpi_comm);
   const std::int32_t mpi_rank = dolfinx::MPI::rank(mpi_comm);
 
+  std::vector<int> neighbors = dolfinx::MPI::neighbors(mpi_comm);
+  const std::int32_t neighbors_size = neighbors.size();
+
+  assert(neighbors_size <= mpi_size);
+
   // Global offset, used to build global cell index, if not given
   std::int64_t global_offset
       = dolfinx::MPI::global_offset(mpi_comm, cell_vertices.rows(), true);
@@ -85,7 +90,7 @@ distribute_cells(
   // indices.  First element of vector is cell count of un-ghosted
   // cells, second element is count of ghost cells.
   std::vector<std::vector<std::size_t>> send_cell_vertices(
-      mpi_size, std::vector<std::size_t>(2, 0));
+      neighbors_size, std::vector<std::size_t>(2, 0));
 
   for (std::int32_t i = 0; i < cell_partition.size(); ++i)
   {
@@ -93,9 +98,17 @@ distribute_cells(
     const std::int32_t* sharing_procs = cell_partition.procs(i);
     for (std::int32_t j = 0; j < num_procs; ++j)
     {
+      const int p = sharing_procs[j];
+
+      // Get rank of owner on neighbourhood communicator
+      const auto it = std::find(neighbors.begin(), neighbors.end(), p);
+      assert(it != neighbors.end());
+      const int np = std::distance(neighbors.begin(), it);
+
+      assert(p == neighbors[np]);
+
       // Create reference to destination vector
-      std::vector<std::size_t>& send_cell_dest
-          = send_cell_vertices[sharing_procs[j]];
+      std::vector<std::size_t>& send_cell_dest = send_cell_vertices[np];
 
       // Count of ghost cells, followed by ghost processes
       if (num_procs > 1)
@@ -126,16 +139,28 @@ distribute_cells(
     }
   }
 
+  if (mpi_rank == 0)
+  {
+    for (auto send_cell_dest : send_cell_vertices)
+    {
+      std::cout << "\n --------------";
+      for (auto a : send_cell_dest)
+        std::cout << a << "-";
+    }
+
+    std::cout << " \n";
+  }
+
   // Distribute cell-vertex connectivity and ownership information
-  std::vector<std::vector<std::size_t>> received_cell_vertices(mpi_size);
-  dolfinx::MPI::all_to_all(mpi_comm, send_cell_vertices,
-                           received_cell_vertices);
+  std::vector<std::vector<std::size_t>> received_cell_vertices(neighbors_size);
+  dolfinx::MPI::neighbor_all_to_all(mpi_comm, send_cell_vertices,
+                                    received_cell_vertices);
 
   // Count number of received cells (first entry in vector) and find out
   // how many ghost cells there are...
   std::int32_t local_count = 0;
   std::int32_t ghost_count = 0;
-  for (std::int32_t p = 0; p < mpi_size; ++p)
+  for (std::int32_t p = 0; p < neighbors_size; ++p)
   {
     std::vector<std::size_t>& received_data = received_cell_vertices[p];
     local_count += received_data[0];

@@ -89,7 +89,6 @@ MPI_Comm PartitionData::neighbour_comm(MPI_Comm mpi_comm) const
   for (std::int32_t i = 0; i < num_processes; i++)
     neighbors_set.insert(received_buffer[i].begin(), received_buffer[i].end());
 
-  neighbors_set.erase(mpi_rank);
   std::vector<std::int32_t> neighbors(neighbors_set.begin(),
                                       neighbors_set.end());
 
