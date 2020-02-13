@@ -330,7 +330,7 @@ void distribute_cell_layer(
       sh_vert_to_cell.insert(
           {cell_vertices(i, p), std::vector<std::int64_t>()});
     }
-    cell_global_to_local.insert({global_cell_indices[i], i});
+    cell_global_to_local.insert({cell_index_map->local_to_global(i), i});
   }
 
   // Iterate only over regular (non-ghost) cells
@@ -342,7 +342,7 @@ void distribute_cell_layer(
       auto vc_it = sh_vert_to_cell.find(cell_vertices(i, j));
       if (vc_it != sh_vert_to_cell.end())
       {
-        cell_global_to_local.insert({global_cell_indices[i], i});
+        cell_global_to_local.insert({cell_index_map->local_to_global(i), i});
         vc_it->second.push_back(i);
       }
     }
@@ -424,6 +424,10 @@ void distribute_cell_layer(
   const std::int32_t num_cells = cell_vertices.rows();
   std::int32_t count = num_cells;
 
+  std::vector<std::int64_t> ghosts(cell_index_map->ghosts().data(),
+                                   cell_index_map->ghosts().data()
+                                       + cell_index_map->num_ghosts());
+
   for (const auto& p : recv_vertcells)
   {
     for (auto q = p.begin(); q != p.end(); q += num_cell_vertices + 2)
@@ -432,11 +436,12 @@ void distribute_cell_layer(
       const std::int64_t cell_index = *(q + 1);
 
       auto cell_insert = cell_global_to_local.insert({cell_index, count});
+      // Received a new "ghost" cell
       if (cell_insert.second)
       {
+        ghosts.push_back(cell_index);
         shared_cells.insert({count, std::set<std::int32_t>()});
         global_cell_indices.push_back(cell_index);
-        // cell_partition.push_back(owner);
         ++count;
       }
     }
