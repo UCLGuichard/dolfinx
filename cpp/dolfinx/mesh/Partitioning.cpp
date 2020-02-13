@@ -177,7 +177,7 @@ distribute_cells(
   std::int32_t c = 0;
   std::int32_t gc = local_count;
   std::map<std::int32_t, std::set<std::int32_t>> shared_cells;
-  for (std::int32_t p = 0; p < mpi_size; ++p)
+  for (std::int32_t p = 0; p < neighbors_size; ++p)
   {
     std::vector<std::size_t>& received_data = received_cell_vertices[p];
     for (auto it = received_data.begin() + 2; it != received_data.end();
