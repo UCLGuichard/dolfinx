@@ -110,8 +110,8 @@ public:
   /// entries, starting from zero.
   template <typename T>
   static void neighbor_all_to_all(MPI_Comm neighbor_comm,
-                                   const std::vector<std::vector<T>>& send_data,
-                                   std::vector<std::vector<T>>& recv_data);
+                                  const std::vector<std::vector<T>>& send_data,
+                                  std::vector<std::vector<T>>& recv_data);
 
   /// Return list of neighbours for a neighbourhood comm
   /// @param neighbor_comm
@@ -760,7 +760,7 @@ void dolfinx::MPI::neighbor_all_to_all(
 
   for (int p = 0; p < neighbour_size; ++p)
   {
-    data_size_send[p] = recv_data[p].size();
+    data_size_send[p] = send_data[p].size();
     data_offset_send[p + 1] = data_offset_send[p] + data_size_send[p];
   }
 
@@ -785,7 +785,7 @@ void dolfinx::MPI::neighbor_all_to_all(
   std::vector<T> data_recv(data_offset_recv[neighbour_size]);
 
   MPI_Neighbor_alltoallv(
-      send_data.data(), data_size_send.data(), data_offset_send.data(),
+      data_send.data(), data_size_send.data(), data_offset_send.data(),
       MPI::mpi_type<T>(), data_recv.data(), data_size_recv.data(),
       data_offset_recv.data(), MPI::mpi_type<T>(), neighbor_comm);
 

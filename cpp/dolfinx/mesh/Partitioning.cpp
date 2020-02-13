@@ -139,18 +139,6 @@ distribute_cells(
     }
   }
 
-  if (mpi_rank == 0)
-  {
-    for (auto send_cell_dest : send_cell_vertices)
-    {
-      std::cout << "\n --------------";
-      for (auto a : send_cell_dest)
-        std::cout << a << "-";
-    }
-
-    std::cout << " \n";
-  }
-
   // Distribute cell-vertex connectivity and ownership information
   std::vector<std::vector<std::size_t>> received_cell_vertices(neighbors_size);
   dolfinx::MPI::neighbor_all_to_all(mpi_comm, send_cell_vertices,

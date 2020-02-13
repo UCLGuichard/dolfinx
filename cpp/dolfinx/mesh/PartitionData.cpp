@@ -72,8 +72,13 @@ MPI_Comm PartitionData::neighbour_comm(MPI_Comm mpi_comm) const
     std::vector<std::int32_t> procs(_dest_processes.data() + _offset[i],
                                     _dest_processes.data() + _offset[i]
                                         + num_procs);
+
     for (std::int32_t j = 0; j < num_procs; j++)
+    {
       edges_per_proc[procs[j]].insert(procs.begin(), procs.end());
+      edges_per_proc[procs[j]].insert(mpi_rank);
+      edges_per_proc[mpi_rank].insert(procs[j]);
+    }
   }
 
   std::vector<std::vector<std::int32_t>> send_buffer(num_processes);
