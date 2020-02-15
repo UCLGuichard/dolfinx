@@ -156,16 +156,15 @@ distribute_cells(
   }
 
   const std::int64_t all_count = ghost_count + local_count;
-
-  // Calculate local range of global indices
-  std::vector<std::int32_t> local_sizes;
-  dolfinx::MPI::all_gather(mpi_comm, local_count, local_sizes);
-  std::vector<std::int64_t> ranges(mpi_size + 1, 0);
-  std::partial_sum(local_sizes.begin(), local_sizes.end(), ranges.begin() + 1);
-  std::vector<std::int64_t> new_global_cell_indices(all_count, -1);
-  std::iota(new_global_cell_indices.begin(),
-            new_global_cell_indices.begin() + local_count, ranges[mpi_rank]);
   std::vector<std::int64_t> stored_tag(all_count, -1);
+  std::vector<std::int64_t> new_global_cell_indices(all_count, -1);
+
+  // Calculate offset
+  std::int32_t offset = 0;
+  MPI_Exscan(&local_count, &offset, 1, dolfinx::MPI::mpi_type<std::int32_t>(),
+             MPI_SUM, mpi_comm);
+  std::iota(new_global_cell_indices.begin(),
+            new_global_cell_indices.begin() + local_count, offset);
 
   // Storage for received cell-vertex data
   Eigen::Array<std::int64_t, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
