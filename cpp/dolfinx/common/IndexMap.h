@@ -148,7 +148,7 @@ public:
   }
 
   /// @todo Reconsider name
-  /// Local (owned) indices shared with neighbour processes, i.e. are
+  /// Local (owned) indices shared with neighbor processes, i.e. are
   /// ghosts on other processes
   /// @return List of indices that are ghosted on other processes
   const std::vector<std::int32_t>& forward_indices() const
@@ -176,8 +176,8 @@ public:
   /// @return The communicator on which the IndexMap is defined
   MPI_Comm mpi_comm() const;
 
-  /// Return MPI neighbourhood communicator
-  /// @return The neighbourhood communicator
+  /// Return MPI neighborhood communicator
+  /// @return The neighborhood communicator
   MPI_Comm mpi_comm_neighborhood() const;
 
   /// Send n values for each index that is owned to processes that have
@@ -255,8 +255,8 @@ private:
   // MPI Communicator
   MPI_Comm _mpi_comm;
 
-  // MPI Communicator for neighbourhood only
-  MPI_Comm _neighbour_comm;
+  // MPI Communicator for neighborhood only
+  MPI_Comm _neighbor_comm;
 
   // Cache rank on mpi_comm (otherwise calls to MPI_Comm_rank can be
   // excessive)
@@ -271,14 +271,14 @@ private:
   // Local-to-global map for ghost indices
   Eigen::Array<std::int64_t, Eigen::Dynamic, 1> _ghosts;
 
-  // Owning neighbour for each ghost index
+  // Owning neighbor for each ghost index
   Eigen::Array<std::int32_t, Eigen::Dynamic, 1> _ghost_owners;
 
-  // Number of indices to send to each neighbour process (ghost ->
+  // Number of indices to send to each neighbor process (ghost ->
   // owner, i.e. forward mode scatter)
   std::vector<std::int32_t> _forward_sizes;
 
-  // "Owned" local indices shared with neighbour processes
+  // "Owned" local indices shared with neighbor processes
   std::vector<std::int32_t> _forward_indices;
 
   template <typename T>

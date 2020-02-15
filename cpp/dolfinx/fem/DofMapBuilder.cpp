@@ -329,7 +329,7 @@ std::vector<std::int64_t> get_global_indices(
 
   // Get ownership offset for each dimension
   // Build list flag for owned mesh entities that are shared, i.e. are a
-  // ghost on a neighbour
+  // ghost on a neighbor
   std::vector<std::int32_t> offset(D + 1, -1);
   std::vector<std::vector<bool>> shared_entity(D + 1);
   for (std::size_t d = 0; d < shared_entity.size(); ++d)
@@ -382,26 +382,26 @@ std::vector<std::int64_t> get_global_indices(
     auto map = topology.index_map(d);
     if (map)
     {
-      // Get number of processes in neighbourhood
+      // Get number of processes in neighborhood
       MPI_Comm comm = map->mpi_comm_neighborhood();
-      int num_neighbours(-1), outdegree(-2), weighted(-1);
-      MPI_Dist_graph_neighbors_count(comm, &num_neighbours, &outdegree,
+      int num_neighbors(-1), outdegree(-2), weighted(-1);
+      MPI_Dist_graph_neighbors_count(comm, &num_neighbors, &outdegree,
                                      &weighted);
-      assert(num_neighbours == outdegree);
+      assert(num_neighbors == outdegree);
 
       // Number and values to send and receive
       const int num_indices = global[d].size();
-      std::vector<int> num_indices_recv(num_neighbours);
+      std::vector<int> num_indices_recv(num_neighbors);
       MPI_Neighbor_allgather(&num_indices, 1, MPI_INT, num_indices_recv.data(),
                              1, MPI_INT, comm);
 
       // Compute displacements for data to receive. Last entry has total
       // number of received items.
-      std::vector<int> disp(num_neighbours + 1, 0);
+      std::vector<int> disp(num_neighbors + 1, 0);
       std::partial_sum(num_indices_recv.begin(), num_indices_recv.end(),
                        disp.begin() + 1);
 
-      // Send/receive global index of dofs with bcs to all neighbours
+      // Send/receive global index of dofs with bcs to all neighbors
       std::vector<std::int64_t> dofs_received(disp.back());
       MPI_Neighbor_allgatherv(global[d].data(), global[d].size(), MPI_INT64_T,
                               dofs_received.data(), num_indices_recv.data(),

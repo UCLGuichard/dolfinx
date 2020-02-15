@@ -345,30 +345,30 @@ void SparsityPattern::assemble()
     }
   }
 
-  // Get number of processes in neighbourhood
+  // Get number of processes in neighborhood
   MPI_Comm comm = _index_maps[0]->mpi_comm_neighborhood();
-  int num_neighbours(-1), outdegree(-2), weighted(-1);
-  MPI_Dist_graph_neighbors_count(comm, &num_neighbours, &outdegree, &weighted);
-  assert(num_neighbours == outdegree);
+  int num_neighbors(-1), outdegree(-2), weighted(-1);
+  MPI_Dist_graph_neighbors_count(comm, &num_neighbors, &outdegree, &weighted);
+  assert(num_neighbors == outdegree);
 
-  // Figure out how many rows to receive from each neighbour
+  // Figure out how many rows to receive from each neighbor
   const int num_my_rows = non_local_send.size();
-  std::vector<int> num_rows_recv(num_neighbours);
+  std::vector<int> num_rows_recv(num_neighbors);
   MPI_Neighbor_allgather(&num_my_rows, 1, MPI_INT, num_rows_recv.data(), 1,
                          MPI_INT, comm);
 
   // Compute displacements for data to receive
-  std::vector<int> disp(num_neighbours + 1, 0);
+  std::vector<int> disp(num_neighbors + 1, 0);
   std::partial_sum(num_rows_recv.begin(), num_rows_recv.end(),
                    disp.begin() + 1);
 
-  // NOTE: Send unowned rows to all neighbours could be a bit 'lazy' and
+  // NOTE: Send unowned rows to all neighbors could be a bit 'lazy' and
   // MPI_Neighbor_alltoallv could be used to send just to the owner, but
-  // maybe the number of rows exchanged in the neighbourhood are
+  // maybe the number of rows exchanged in the neighborhood are
   // relatively small that MPI_Neighbor_allgatherv is simpler.
 
-  // Send all unowned rows to neighbours, and receive rows from
-  // neighbours
+  // Send all unowned rows to neighbors, and receive rows from
+  // neighbors
   std::vector<std::int64_t> non_local_received(disp.back());
   MPI_Neighbor_allgatherv(non_local_send.data(), non_local_send.size(),
                           MPI_INT64_T, non_local_received.data(),

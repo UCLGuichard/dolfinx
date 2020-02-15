@@ -63,7 +63,7 @@ sort_by_perm(const Eigen::Array<T, Eigen::Dynamic, Eigen::Dynamic,
 /// Get the shared entities, a map from local index to the set of
 /// sharing processes.
 ///
-/// @param[in] neighbour_comm The MPI neighborhood communicator for all
+/// @param[in] neighbor_comm The MPI neighborhood communicator for all
 ///   processes sharing vertices
 /// @param[in] send_entities Lists of entities (as vertex indices) to
 ///   send to other processes
@@ -75,19 +75,19 @@ sort_by_perm(const Eigen::Array<T, Eigen::Dynamic, Eigen::Dynamic,
 ///   exist, -1 otherwise.
 std::tuple<std::map<std::int32_t, std::set<std::int32_t>>,
            std::vector<std::vector<std::int32_t>>>
-get_shared_entities(MPI_Comm neighbour_comm,
+get_shared_entities(MPI_Comm neighbor_comm,
                     const std::vector<std::vector<std::int64_t>>& send_entities,
                     const std::vector<std::vector<std::int32_t>>& send_index,
                     int num_vertices)
 {
-  const std::vector<int> neighbours = dolfinx::MPI::neighbors(neighbour_comm);
-  const int neighbour_size = neighbours.size();
+  const std::vector<int> neighbors = dolfinx::MPI::neighbors(neighbor_comm);
+  const int neighbor_size = neighbors.size();
 
   // Items to return
   std::map<std::int32_t, std::set<std::int32_t>> shared_entities;
-  std::vector<std::vector<std::int32_t>> recv_index(neighbour_size);
+  std::vector<std::vector<std::int32_t>> recv_index(neighbor_size);
 
-  // Prepare data for neighbour all to all
+  // Prepare data for neighbor all to all
   std::vector<std::int64_t> send_entities_data;
   std::vector<std::int64_t> recv_entities_data;
   std::vector<int> send_offsets = {0};
@@ -99,12 +99,12 @@ get_shared_entities(MPI_Comm neighbour_comm,
     send_offsets.push_back(send_entities_data.size());
   }
 
-  dolfinx::MPI::neighbor_all_to_all(neighbour_comm, send_offsets,
+  dolfinx::MPI::neighbor_all_to_all(neighbor_comm, send_offsets,
                                     send_entities_data, recv_offsets,
                                     recv_entities_data);
 
   // Compare received with sent for each process
-  for (int np = 0; np < neighbour_size; ++np)
+  for (int np = 0; np < neighbor_size; ++np)
   {
     Eigen::Map<const Eigen::Array<std::int64_t, Eigen::Dynamic, Eigen::Dynamic,
                                   Eigen::RowMajor>>
@@ -129,7 +129,7 @@ get_shared_entities(MPI_Comm neighbour_comm,
         {
           // This entity was sent, and the same was received back,
           // confirming sharing
-          const int p = neighbours[np];
+          const int p = neighbors[np];
           shared_entities[send_index[np][i]].insert(p);
           recv_index[np][j] = send_index[np][i];
           break;
@@ -175,25 +175,25 @@ get_local_indexing(
   for (int i = 0; i < entity_list.rows(); ++i)
     unique_row[entity_index[i]] = i;
 
-  // Create an expanded neighbour_comm from shared_vertices
-  std::set<std::int32_t> neighbour_set;
+  // Create an expanded neighbor_comm from shared_vertices
+  std::set<std::int32_t> neighbor_set;
   for (auto q : shared_vertices)
-    neighbour_set.insert(q.second.begin(), q.second.end());
-  std::vector<std::int32_t> neighbours(neighbour_set.begin(),
-                                       neighbour_set.end());
-  MPI_Comm neighbour_comm;
-  MPI_Dist_graph_create_adjacent(comm, neighbours.size(), neighbours.data(),
-                                 MPI_UNWEIGHTED, neighbours.size(),
-                                 neighbours.data(), MPI_UNWEIGHTED,
-                                 MPI_INFO_NULL, false, &neighbour_comm);
+    neighbor_set.insert(q.second.begin(), q.second.end());
+  std::vector<std::int32_t> neighbors(neighbor_set.begin(),
+                                       neighbor_set.end());
+  MPI_Comm neighbor_comm;
+  MPI_Dist_graph_create_adjacent(comm, neighbors.size(), neighbors.data(),
+                                 MPI_UNWEIGHTED, neighbors.size(),
+                                 neighbors.data(), MPI_UNWEIGHTED,
+                                 MPI_INFO_NULL, false, &neighbor_comm);
 
-  const int neighbour_size = neighbours.size();
-  std::map<int, int> proc_to_neighbour;
-  for (int i = 0; i < neighbour_size; ++i)
-    proc_to_neighbour.insert({neighbours[i], i});
+  const int neighbor_size = neighbors.size();
+  std::map<int, int> proc_to_neighbor;
+  for (int i = 0; i < neighbor_size; ++i)
+    proc_to_neighbor.insert({neighbors[i], i});
 
-  std::vector<std::vector<std::int64_t>> send_entities(neighbour_size);
-  std::vector<std::vector<std::int32_t>> send_index(neighbour_size);
+  std::vector<std::vector<std::int64_t>> send_entities(neighbor_size);
+  std::vector<std::vector<std::int32_t>> send_index(neighbor_size);
 
   // Get all "possibly shared" entities, based on vertex sharing Send to
   // other processes, and see if we get the same back
@@ -218,8 +218,8 @@ get_local_indexing(
       if (q.second == num_vertices)
       {
         const int p = q.first;
-        auto it = proc_to_neighbour.find(p);
-        assert(it != proc_to_neighbour.end());
+        auto it = proc_to_neighbor.find(p);
+        assert(it != proc_to_neighbor.end());
         const int np = it->second;
 
         // Entity entity_index[i] may be shared with process p
@@ -239,7 +239,7 @@ get_local_indexing(
   // for the received entities (from other processes) with the indices
   // of the sent entities (to other processes)
   const auto [shared_entities, recv_index] = get_shared_entities(
-      neighbour_comm, send_entities, send_index, num_vertices);
+      neighbor_comm, send_entities, send_index, num_vertices);
 
   int mpi_rank = dolfinx::MPI::rank(comm);
 
@@ -284,7 +284,7 @@ get_local_indexing(
     // Send global indices for same entities that we sent before
     // This uses the same pattern as before, so we can match up
     // the received data to the indices in recv_index
-    for (int np = 0; np < neighbour_size; ++np)
+    for (int np = 0; np < neighbor_size; ++np)
     {
       for (std::int32_t index : send_index[np])
       {
@@ -299,11 +299,11 @@ get_local_indexing(
     }
 
     dolfinx::MPI::neighbor_all_to_all(
-        neighbour_comm, send_global_index_offsets, send_global_index_data,
+        neighbor_comm, send_global_index_offsets, send_global_index_data,
         recv_global_index_offsets, recv_global_index_data);
 
     // Map back received indices
-    for (int np = 0; np < neighbour_size; ++np)
+    for (int np = 0; np < neighbor_size; ++np)
     {
       for (int j = 0; j < (recv_global_index_offsets[np + 1]
                            - recv_global_index_offsets[np]);
@@ -335,7 +335,7 @@ get_local_indexing(
 //-----------------------------------------------------------------------------
 
 /// Compute entities of dimension d
-/// @param[in] comm MPI communicator (TODO: full or neighbour hood?)
+/// @param[in] comm MPI communicator (TODO: full or neighbor hood?)
 /// @param[in] cells Adjacency list for cell-vertex connectivity
 /// @param[in] shared_vertices TODO
 /// @param[in] global_vertex_indices TODO: user global?

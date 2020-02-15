@@ -38,19 +38,19 @@ std::vector<std::int32_t>
 get_remote_bcs1(const common::IndexMap& map,
                 const std::vector<std::int32_t>& dofs_local)
 {
-  // Get number of processes in neighbourhood
+  // Get number of processes in neighborhood
   MPI_Comm comm = map.mpi_comm_neighborhood();
-  int num_neighbours(-1), outdegree(-2), weighted(-1);
-  MPI_Dist_graph_neighbors_count(comm, &num_neighbours, &outdegree, &weighted);
-  assert(num_neighbours == outdegree);
+  int num_neighbors(-1), outdegree(-2), weighted(-1);
+  MPI_Dist_graph_neighbors_count(comm, &num_neighbors, &outdegree, &weighted);
+  assert(num_neighbors == outdegree);
 
-  // Return early if there are no neighbours
-  if (num_neighbours == 0)
+  // Return early if there are no neighbors
+  if (num_neighbors == 0)
     return std::vector<std::int32_t>();
 
-  // Figure out how many entries to receive from each neighbour
+  // Figure out how many entries to receive from each neighbor
   const int num_dofs = dofs_local.size();
-  std::vector<int> num_dofs_recv(num_neighbours);
+  std::vector<int> num_dofs_recv(num_neighbors);
   MPI_Neighbor_allgather(&num_dofs, 1, MPI_INT, num_dofs_recv.data(), 1,
                          MPI_INT, comm);
 
@@ -63,7 +63,7 @@ get_remote_bcs1(const common::IndexMap& map,
   // number of received items.
   // Note: std::inclusive_scan would be better, but gcc 7.4.0 (Ubuntu
   // 18.04) does not have full C++17 support
-  std::vector<int> disp(num_neighbours + 1, 0);
+  std::vector<int> disp(num_neighbors + 1, 0);
   std::partial_sum(num_dofs_recv.begin(), num_dofs_recv.end(),
                    disp.begin() + 1);
   // std::inclusive_scan(num_dofs_recv.begin(), num_dofs_recv.end(),
@@ -72,7 +72,7 @@ get_remote_bcs1(const common::IndexMap& map,
   // NOTE: we could use MPI_Neighbor_alltoallv to send only to relevant
   // processes
 
-  // Send/receive global index of dofs with bcs to all neighbours
+  // Send/receive global index of dofs with bcs to all neighbors
   std::vector<std::int64_t> dofs_received(disp.back());
   MPI_Neighbor_allgatherv(dofs_global.data(), dofs_global.size(), MPI_INT64_T,
                           dofs_received.data(), num_dofs_recv.data(),
@@ -99,19 +99,19 @@ std::vector<std::array<std::int32_t, 2>>
 get_remote_bcs2(const common::IndexMap& map0, const common::IndexMap& map1,
                 const std::vector<std::array<std::int32_t, 2>>& dofs_local)
 {
-  // Get number of processes in neighbourhood
+  // Get number of processes in neighborhood
   MPI_Comm comm0 = map0.mpi_comm_neighborhood();
-  int num_neighbours(-1), outdegree(-2), weighted(-1);
-  MPI_Dist_graph_neighbors_count(comm0, &num_neighbours, &outdegree, &weighted);
-  assert(num_neighbours == outdegree);
+  int num_neighbors(-1), outdegree(-2), weighted(-1);
+  MPI_Dist_graph_neighbors_count(comm0, &num_neighbors, &outdegree, &weighted);
+  assert(num_neighbors == outdegree);
 
-  // Return early if there are no neighbours
-  if (num_neighbours == 0)
+  // Return early if there are no neighbors
+  if (num_neighbors == 0)
     return std::vector<std::array<std::int32_t, 2>>();
 
-  // Figure out how many entries to receive from each neighbour
+  // Figure out how many entries to receive from each neighbor
   const int num_dofs = 2 * dofs_local.size();
-  std::vector<int> num_dofs_recv(num_neighbours);
+  std::vector<int> num_dofs_recv(num_neighbors);
   MPI_Neighbor_allgather(&num_dofs, 1, MPI_INT, num_dofs_recv.data(), 1,
                          MPI_INT, comm0);
 
@@ -134,7 +134,7 @@ get_remote_bcs2(const common::IndexMap& map0, const common::IndexMap& map1,
   // number of received items.
   // Note: std::inclusive_scan would be better, but gcc 7.4.0 (Ubuntu
   // 18.04) does not have full C++17 support
-  std::vector<int> disp(num_neighbours + 1, 0);
+  std::vector<int> disp(num_neighbors + 1, 0);
   std::partial_sum(num_dofs_recv.begin(), num_dofs_recv.end(),
                    disp.begin() + 1);
   // std::inclusive_scan(num_dofs_recv.begin(), num_dofs_recv.end(),
@@ -143,7 +143,7 @@ get_remote_bcs2(const common::IndexMap& map0, const common::IndexMap& map1,
   // NOTE: we could use MPI_Neighbor_alltoallv to send only to relevant
   // processes
 
-  // Send/receive global index of dofs with bcs to all neighbours
+  // Send/receive global index of dofs with bcs to all neighbors
   // std::vector<std::int64_t> dofs_received(disp.back());
   assert(disp.back() % 2 == 0);
   Eigen::Array<std::int64_t, Eigen::Dynamic, 2, Eigen::RowMajor> dofs_received(

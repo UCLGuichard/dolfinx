@@ -128,24 +128,24 @@ ParallelRefinement::marked_edge_list(const mesh::MeshEntity& cell) const
 void ParallelRefinement::update_logical_edgefunction()
 {
   const std::size_t mpi_size = MPI::size(_mesh.mpi_comm());
-  MPI_Comm neighbour_comm
+  MPI_Comm neighbor_comm
       = _mesh.topology().index_map(1)->mpi_comm_neighborhood();
-  // Get neighbour processes
-  std::vector<int> neighbours = MPI::neighbors(neighbour_comm);
+  // Get neighbor processes
+  std::vector<int> neighbors = MPI::neighbors(neighbor_comm);
   std::vector<std::int32_t> send_offsets(1, 0), recv_offsets;
   std::vector<std::int64_t> data_to_send, data_to_recv;
-  for (std::size_t i = 0; i < neighbours.size(); ++i)
+  for (std::size_t i = 0; i < neighbors.size(); ++i)
   {
     data_to_send.insert(data_to_send.end(),
-                        _marked_for_update[neighbours[i]].begin(),
-                        _marked_for_update[neighbours[i]].end());
+                        _marked_for_update[neighbors[i]].begin(),
+                        _marked_for_update[neighbors[i]].end());
     send_offsets.push_back(data_to_send.size());
   }
 
   // Send all shared edges marked for update and receive from other
   // processes
 
-  MPI::neighbor_all_to_all(neighbour_comm, send_offsets, data_to_send,
+  MPI::neighbor_all_to_all(neighbor_comm, send_offsets, data_to_send,
                            recv_offsets, data_to_recv);
 
   // Clear marked_for_update vectors
@@ -226,13 +226,13 @@ void ParallelRefinement::create_new_vertices()
   // sent off-process.  Add offset to map, and collect up any shared
   // new vertices that need to send the new index off-process
 
-  MPI_Comm neighbour_comm
+  MPI_Comm neighbor_comm
       = _mesh.topology().index_map(1)->mpi_comm_neighborhood();
-  std::vector<int> neighbours = MPI::neighbors(neighbour_comm);
-  std::vector<std::vector<std::int64_t>> values_to_send(neighbours.size());
-  std::map<int, int> proc_to_neighbour;
-  for (std::size_t i = 0; i < neighbours.size(); ++i)
-    proc_to_neighbour.insert({neighbours[i], i});
+  std::vector<int> neighbors = MPI::neighbors(neighbor_comm);
+  std::vector<std::vector<std::int64_t>> values_to_send(neighbors.size());
+  std::map<int, int> proc_to_neighbor;
+  for (std::size_t i = 0; i < neighbors.size(); ++i)
+    proc_to_neighbor.insert({neighbors[i], i});
 
   for (auto& local_edge : _local_edge_to_new_vertex)
   {
@@ -247,8 +247,8 @@ void ParallelRefinement::create_new_vertices()
     {
       for (auto remote_process : shared_edge_i->second)
       {
-        const auto it = proc_to_neighbour.find(remote_process);
-        assert(it != proc_to_neighbour.end());
+        const auto it = proc_to_neighbor.find(remote_process);
+        assert(it != proc_to_neighbor.end());
 
         // send mapping from global edge index to new global vertex index
         values_to_send[it->second].push_back(
@@ -258,17 +258,17 @@ void ParallelRefinement::create_new_vertices()
     }
   }
 
-  // Send new vertex indices to edge neighbours and receive
+  // Send new vertex indices to edge neighbors and receive
   std::vector<std::int64_t> send_values, received_values;
   std::vector<int> send_offsets(1, 0), recv_offsets;
-  for (std::size_t i = 0; i < neighbours.size(); ++i)
+  for (std::size_t i = 0; i < neighbors.size(); ++i)
   {
     send_values.insert(send_values.end(), values_to_send[i].begin(),
                        values_to_send[i].end());
     send_offsets.push_back(send_values.size());
   }
 
-  MPI::neighbor_all_to_all(neighbour_comm, send_offsets, send_values,
+  MPI::neighbor_all_to_all(neighbor_comm, send_offsets, send_values,
                            recv_offsets, received_values);
 
   // Add received remote global vertex indices to map

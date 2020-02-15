@@ -95,8 +95,8 @@ public:
                          const std::vector<std::vector<T>>& in_values,
                          std::vector<T>& out_values);
 
-  /// Neighbourhood all-to-all. Send data to neighbours using offsets into
-  /// contiguous data array. Offset array should contain (num_neighbours + 1)
+  /// neighborhood all-to-all. Send data to neighbors using offsets into
+  /// contiguous data array. Offset array should contain (num_neighbors + 1)
   /// entries, starting from zero.
   template <typename T>
   static void neighbor_all_to_all(MPI_Comm neighbor_comm,
@@ -105,7 +105,7 @@ public:
                                   std::vector<int>& recv_offsets,
                                   std::vector<T>& recv_data);
 
-  /// Return list of neighbours for a neighbourhood comm
+  /// Return list of neighbors for a neighborhood comm
   /// @param neighbor_comm
   static std::vector<int> neighbors(MPI_Comm neighbor_comm);
 

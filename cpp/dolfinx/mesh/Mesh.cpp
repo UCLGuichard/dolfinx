@@ -89,20 +89,20 @@ std::map<std::int32_t, std::set<int>>
 compute_shared_from_indexmap(const common::IndexMap& index_map)
 {
 
-  // Get neighbour processes
+  // Get neighbor processes
   int indegree(-1), outdegree(-2), weighted(-1);
   MPI_Dist_graph_neighbors_count(index_map.mpi_comm_neighborhood(), &indegree,
                                  &outdegree, &weighted);
   assert(indegree == outdegree);
-  std::vector<int> neighbours(indegree), neighbours1(indegree),
+  std::vector<int> neighbors(indegree), neighbors1(indegree),
       weights(indegree), weights1(indegree);
 
   MPI_Dist_graph_neighbors(index_map.mpi_comm_neighborhood(), indegree,
-                           neighbours.data(), weights.data(), outdegree,
-                           neighbours1.data(), weights1.data());
-  std::map<int, int> proc_to_neighbour;
-  for (std::size_t i = 0; i < neighbours.size(); ++i)
-    proc_to_neighbour[neighbours[i]] = i;
+                           neighbors.data(), weights.data(), outdegree,
+                           neighbors1.data(), weights1.data());
+  std::map<int, int> proc_to_neighbor;
+  for (std::size_t i = 0; i < neighbors.size(); ++i)
+    proc_to_neighbor[neighbors[i]] = i;
 
   // Simple map for locally owned, forward shared entities
   std::map<std::int32_t, std::set<int>> shared_entities
@@ -110,14 +110,14 @@ compute_shared_from_indexmap(const common::IndexMap& index_map)
 
   // Ghosts are also shared, but we need to communicate to find owners
   std::vector<std::int32_t> num_sharing(index_map.size_local(), 0);
-  std::vector<int> send_sizes(neighbours.size());
+  std::vector<int> send_sizes(neighbors.size());
   for (auto q : shared_entities)
   {
     num_sharing[q.first] = q.second.size();
     for (int r : q.second)
-      send_sizes[proc_to_neighbour[r]] += q.second.size();
+      send_sizes[proc_to_neighbor[r]] += q.second.size();
   }
-  std::vector<int> send_offsets(neighbours.size() + 1, 0);
+  std::vector<int> send_offsets(neighbors.size() + 1, 0);
   std::partial_sum(send_sizes.begin(), send_sizes.end(),
                    send_offsets.begin() + 1);
   std::vector<int> send_data(send_offsets.back());
@@ -127,7 +127,7 @@ compute_shared_from_indexmap(const common::IndexMap& index_map)
   {
     for (int r : q.second)
     {
-      const int np = proc_to_neighbour[r];
+      const int np = proc_to_neighbor[r];
       std::copy(q.second.begin(), q.second.end(),
                 send_data.begin() + temp_offsets[np]);
       temp_offsets[np] += q.second.size();
@@ -137,14 +137,14 @@ compute_shared_from_indexmap(const common::IndexMap& index_map)
   std::vector<std::int32_t> ghost_shared_sizes
       = index_map.scatter_fwd(num_sharing, 1);
 
-  // Count up how many to receive from each neighbour...
-  std::vector<int> recv_sizes(neighbours.size());
+  // Count up how many to receive from each neighbor...
+  std::vector<int> recv_sizes(neighbors.size());
   for (int i = 0; i < index_map.num_ghosts(); ++i)
   {
-    int np = proc_to_neighbour[index_map.ghost_owners()[i]];
+    int np = proc_to_neighbor[index_map.ghost_owners()[i]];
     recv_sizes[np] += ghost_shared_sizes[i];
   }
-  std::vector<int> recv_offsets(neighbours.size() + 1, 0);
+  std::vector<int> recv_offsets(neighbors.size() + 1, 0);
   std::partial_sum(recv_sizes.begin(), recv_sizes.end(),
                    recv_offsets.begin() + 1);
   std::vector<int> recv_data(recv_offsets.back());
@@ -158,7 +158,7 @@ compute_shared_from_indexmap(const common::IndexMap& index_map)
   for (int i = 0; i < index_map.num_ghosts(); ++i)
   {
     const int p = index_map.ghost_owners()[i];
-    const int np = proc_to_neighbour[p];
+    const int np = proc_to_neighbor[p];
     std::set<int> sharing_set(recv_data.begin() + recv_offsets[np],
                               recv_data.begin() + recv_offsets[np]
                                   + ghost_shared_sizes[i]);

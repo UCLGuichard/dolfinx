@@ -208,22 +208,22 @@ distribute_cells(
 
   // Need to get remote indexing of ghost cells
 
-  // Create a neighbourhood comm, since we know the processes already
-  std::set<std::int32_t> neighbour_set;
+  // Create a neighborhood comm, since we know the processes already
+  std::set<std::int32_t> neighbor_set;
   for (auto q : shared_cells)
-    neighbour_set.insert(q.second.begin(), q.second.end());
-  std::vector<std::int32_t> neighbours(neighbour_set.begin(),
-                                       neighbour_set.end());
-  std::map<int, int> proc_to_neighbour;
-  for (std::size_t i = 0; i < neighbours.size(); ++i)
-    proc_to_neighbour.insert({neighbours[i], i});
-  MPI_Comm neighbour_comm;
-  MPI_Dist_graph_create_adjacent(mpi_comm, neighbours.size(), neighbours.data(),
-                                 MPI_UNWEIGHTED, neighbours.size(),
-                                 neighbours.data(), MPI_UNWEIGHTED,
-                                 MPI_INFO_NULL, false, &neighbour_comm);
+    neighbor_set.insert(q.second.begin(), q.second.end());
+  std::vector<std::int32_t> neighbors(neighbor_set.begin(),
+                                       neighbor_set.end());
+  std::map<int, int> proc_to_neighbor;
+  for (std::size_t i = 0; i < neighbors.size(); ++i)
+    proc_to_neighbor.insert({neighbors[i], i});
+  MPI_Comm neighbor_comm;
+  MPI_Dist_graph_create_adjacent(mpi_comm, neighbors.size(), neighbors.data(),
+                                 MPI_UNWEIGHTED, neighbors.size(),
+                                 neighbors.data(), MPI_UNWEIGHTED,
+                                 MPI_INFO_NULL, false, &neighbor_comm);
 
-  std::vector<std::vector<std::int64_t>> send_index(neighbours.size());
+  std::vector<std::vector<std::int64_t>> send_index(neighbors.size());
   for (auto q : shared_cells)
   {
     const std::int32_t local_idx = q.first;
@@ -232,8 +232,8 @@ distribute_cells(
     {
       for (int p : q.second)
       {
-        const int np = proc_to_neighbour[p];
-        // Share this cell with neighbours
+        const int np = proc_to_neighbor[p];
+        // Share this cell with neighbors
         send_index[np].push_back(new_global_cell_indices[local_idx]);
         send_index[np].push_back(stored_tag[local_idx]);
       }
@@ -244,7 +244,7 @@ distribute_cells(
 
   std::vector<std::int64_t> send_data;
   std::vector<int> send_offsets = {0};
-  for (std::size_t i = 0; i < neighbours.size(); ++i)
+  for (std::size_t i = 0; i < neighbors.size(); ++i)
   {
     send_data.insert(send_data.end(), send_index[i].begin(),
                      send_index[i].end());
@@ -252,16 +252,16 @@ distribute_cells(
   }
   std::vector<int> recv_offsets;
   std::vector<std::int64_t> recv_data;
-  MPI::neighbor_all_to_all(neighbour_comm, send_offsets, send_data,
+  MPI::neighbor_all_to_all(neighbor_comm, send_offsets, send_data,
                            recv_offsets, recv_data);
-  MPI_Comm_free(&neighbour_comm);
+  MPI_Comm_free(&neighbor_comm);
 
   std::map<std::int64_t, std::int32_t> tag_to_position;
   for (std::size_t i = 0; i < stored_tag.size(); ++i)
     tag_to_position.insert({stored_tag[i], i});
 
   std::stringstream s;
-  for (std::size_t i = 0; i < neighbours.size(); ++i)
+  for (std::size_t i = 0; i < neighbors.size(); ++i)
   {
     for (int j = recv_offsets[i]; j < recv_offsets[i + 1]; j += 2)
     {
