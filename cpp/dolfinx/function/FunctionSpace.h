@@ -79,8 +79,7 @@ public:
   /// filling the array of expansion coefficients associated with this
   /// function space
   /// @param[in,out] coefficients The expansion coefficients. It must be
-  ///                             correctly sized by the calling
-  ///                             function.
+  ///   correctly sized by the calling function.
   /// @param[in] v The function to be interpolated
   void interpolate(
       Eigen::Ref<Eigen::Array<PetscScalar, Eigen::Dynamic, 1>> coefficients,
@@ -96,12 +95,9 @@ public:
   /// Interpolate an expression into this function space, filling the
   /// array of expansion coefficients associated with this function
   /// space.
-  /// @cond Work around doxygen bug for std::function
   /// @param[in,out] coefficients The expansion coefficients. It must be
-  ///                             correctly sized by the calling
-  ///                             function.
+  ///   correctly sized by the calling function.
   /// @param[in] f The function to be interpolated
-  /// @endcond
   void interpolate(
       Eigen::Ref<Eigen::Array<PetscScalar, Eigen::Dynamic, 1>> coefficients,
       const std::function<Eigen::Array<PetscScalar, Eigen::Dynamic,
@@ -113,11 +109,10 @@ public:
   /// array of expansion coefficients associated with this function
   /// space.
   /// @note This interface is not intended for general use. It supports
-  ///       the use of an expression function with a C-signature; it is
-  ///       typically used by compiled Numba functions with C interface.
+  ///   the use of an expression function with a C-signature; it is
+  ///   typically used by compiled Numba functions with C interface.
   /// @param[in,out] coefficients The expansion coefficients to be
-  ///                             filled. It must be correctly sized by
-  ///                             the calling function.
+  ///   filled. It must be correctly sized by the calling function.
   /// @param[in] f The function to be interpolated
   void interpolate_c(
       Eigen::Ref<Eigen::Array<PetscScalar, Eigen::Dynamic, 1>> coefficients,
@@ -157,7 +152,7 @@ public:
 
   /// Get the component with respect to the root superspace
   /// @return The component with respect to the root superspace , i.e.
-  ///         W.sub(1).sub(0) == [1, 0]
+  ///   W.sub(1).sub(0) == [1, 0]
   std::vector<int> component() const;
 
   /// Tabulate the physical coordinates of all dofs on this process.

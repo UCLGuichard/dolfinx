@@ -47,7 +47,8 @@ public:
 
   /// Create function on given function space with a given vector
   ///
-  /// *Warning: This constructor is intended for internal library use only*
+  /// @warning This constructor is intended for internal library use
+  /// only
   ///
   /// @param[in] V The function space
   /// @param[in] x The vector
@@ -94,9 +95,7 @@ public:
   void interpolate(const Function& v);
 
   /// Interpolate an expression
-  /// @cond Work around doxygen bug for std::function
   /// @param[in] f The expression to be interpolated
-  /// @endcond
   void
   interpolate(const std::function<Eigen::Array<PetscScalar, Eigen::Dynamic,
                                                Eigen::Dynamic, Eigen::RowMajor>(
@@ -128,14 +127,13 @@ public:
 
   /// Evaluate the Function at points
   /// @param[in] x The coordinates of the points. It has shape
-  ///              (num_points, 3).
+  ///   (num_points, 3).
   /// @param[in] cells An array of cell indices. cells[i] is the index
-  ///                  of the cell that contains the point x(i).
-  ///                  Negative cell indices can be passed, and the
-  ///                  corresponding point will be ignored.
+  ///   of the cell that contains the point x(i). Negative cell indices
+  ///   can be passed, and the corresponding point will be ignored.
   /// @param[in,out] u The values at the points. Values are not computed
-  ///                  for points with a negative cell index. This
-  ///                  argument must be passed with the corrext size.
+  ///   for points with a negative cell index. This argument must be
+  ///   passed with the corrext size.
   void
   eval(const Eigen::Ref<
            const Eigen::Array<double, Eigen::Dynamic, 3, Eigen::RowMajor>>& x,
