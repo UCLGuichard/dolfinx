@@ -150,11 +150,12 @@ Mesh::Mesh(
     const Eigen::Ref<const Eigen::Array<
         std::int64_t, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>& cells,
     const std::vector<std::int64_t>& global_cell_indices,
-    const GhostMode ghost_mode, std::int32_t num_ghost_cells,
-    const ufc_dofmap* dofmap)
+    const GhostMode ghost_mode, std::int32_t num_ghost_cells)
     : _degree(1), _mpi_comm(comm), _ghost_mode(ghost_mode),
       _unique_id(common::UniqueIdGenerator::id())
 {
+  const int tdim = mesh::cell_dim(type);
+
   // Check size of global cell indices. If empty, construct later.
   if (global_cell_indices.size() > 0
       and global_cell_indices.size() != (std::size_t)cells.rows())
@@ -162,67 +163,38 @@ Mesh::Mesh(
     throw std::runtime_error(
         "Cannot create mesh. Wrong number of global cell indices");
   }
+  // Find degree of mesh
+  // FIXME: degree should probably be in MeshGeometry
+  _degree = mesh::cell_degree(type, cells.cols());
 
-  const int tdim = mesh::cell_dim(type);
-
-  //
-  // --- 0. Pre (to be passed in later)
-
-  // FIXME: Only for P1 at the moment
-
-  // Create ElementDofLayout
-  const int num_cell_vertices = mesh::num_cell_vertices(type);
-  std::vector<std::vector<std::set<int>>> entity_dofs(
-      tdim, std::vector<std::set<int>>(num_cell_vertices));
-  for (int i = 0; i < num_cell_vertices; ++i)
-    entity_dofs[0][i].insert(1);
-  fem::ElementDofLayout dof_layout(1, entity_dofs, {}, {}, type, {1, 1, 1, 1});
-
-  //
-  // --- 1. Construct mesh topology
+  // Get number of nodes (global)
+  const std::uint64_t num_points_global = MPI::sum(comm, points.rows());
 
   // Number of local cells (not including ghosts)
   const std::int32_t num_cells = cells.rows();
   assert(num_ghost_cells <= num_cells);
   const std::int32_t num_cells_local = num_cells - num_ghost_cells;
 
-  // TODO: separate topology and geometry in this step
   // Compute node local-to-global map from global indices, and compute
   // cell topology using new local indices
   const auto [point_index_map, node_indices_global, coordinate_nodes,
               points_received]
       = compute_point_distribution(comm, cells, points);
 
-  // Create cell-to-vertex connectivity
-  const std::int32_t num_vertices_per_cell = mesh::num_cell_vertices(type);
-  Eigen::Array<std::int32_t, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
-      vertex_cols(cells.rows(), num_vertices_per_cell);
+  _coordinate_dofs = std::make_unique<CoordinateDofs>(coordinate_nodes);
 
-  // Find degree of mesh
-  // FIXME: degree should probably be in MeshGeometry
-  _degree = mesh::cell_degree(type, cells.cols());
-
-  // FIXME: Use ElementDofLayout to get vertex dof indices
-  std::vector<int> local_vertices(num_cell_vertices);
-  for (int i = 0; i < num_cell_vertices; ++i)
-  {
-    Eigen::Array<int, Eigen::Dynamic, 1> local_index
-        = dof_layout.entity_dofs(0, i);
-    assert(local_index.rows() == 1);
-    local_vertices[i] = local_index[0];
-  }
-
-  // Get vertices (global index) on this process
-  std::vector<std::int64_t> vertices;
-  for (std::int32_t c = 0; c < cells.rows(); ++c)
-    for (std::int32_t v = 0; v < num_cell_vertices; ++v)
-      vertices.push_back(cells(c, local_vertices[v]));
-  std::sort(vertices.begin(), vertices.end());
-  vertices.erase(std::unique(vertices.begin(), vertices.end()), vertices.end());
+  _geometry = std::make_unique<Geometry>(num_points_global, points_received,
+                                         node_indices_global);
 
   // Get global vertex information
   std::vector<std::int64_t> vertex_indices_global;
   std::shared_ptr<common::IndexMap> vertex_index_map;
+
+  // Make cell to vertex connectivity
+  const std::int32_t num_vertices_per_cell = mesh::num_cell_vertices(type);
+  Eigen::Array<std::int32_t, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
+      vertex_cols(cells.rows(), num_vertices_per_cell);
+
   if (_degree == 1)
   {
     vertex_indices_global = std::move(node_indices_global);
@@ -264,7 +236,6 @@ Mesh::Mesh(
   _topology->set_index_map(0, vertex_index_map);
   const std::int32_t num_vertices
       = vertex_index_map->size_local() + vertex_index_map->num_ghosts();
-
   auto c0 = std::make_shared<graph::AdjacencyList<std::int32_t>>(num_vertices);
   _topology->set_connectivity(c0, 0, 0);
 
@@ -295,20 +266,112 @@ Mesh::Mesh(
   }
   // else
   //   _topology->set_global_indices(tdim, global_cell_indices);
+}
+//-----------------------------------------------------------------------------
+Mesh::Mesh(
+    MPI_Comm comm, const fem::ElementDofLayout& dof_layout,
+    const Eigen::Ref<const Eigen::Array<double, Eigen::Dynamic, Eigen::Dynamic,
+                                        Eigen::RowMajor>>& points,
+    const Eigen::Ref<const Eigen::Array<
+        std::int64_t, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>& cells)
+    : _degree(1), _mpi_comm(comm), _unique_id(common::UniqueIdGenerator::id())
+{
+  const int tdim = mesh::cell_dim(dof_layout.cell_type());
 
   //
-  // --- 2. Build geometry dofmap
-
-  // TODO
+  // --- 0. Pre (to be passed in later)
 
   //
-  // --- 2. Fetch coordinates for each node
+  // --- 1. Construct mesh topology
 
-  // Get number of nodes (global)
-  const std::uint64_t num_points_global = MPI::sum(comm, points.rows());
-  _coordinate_dofs = std::make_unique<CoordinateDofs>(coordinate_nodes);
-  _geometry = std::make_unique<Geometry>(num_points_global, points_received,
-                                         node_indices_global);
+  // Number of local cells
+  const std::int32_t num_cells = cells.rows();
+
+  const std::int32_t num_vertices_per_cell
+      = mesh::num_cell_vertices(dof_layout.cell_type());
+
+  // Use ElementDofLayout to get vertex dof indices (local to a cell)
+  std::vector<int> local_vertices(num_vertices_per_cell);
+  for (int i = 0; i < num_vertices_per_cell; ++i)
+  {
+    Eigen::Array<int, Eigen::Dynamic, 1> local_index
+        = dof_layout.entity_dofs(0, i);
+    assert(local_index.rows() == 1);
+    local_vertices[i] = local_index[0];
+  }
+
+  // Create cell-to-vertex connectivity, and build list of vertex indices
+  // (global)
+  Eigen::Array<std::int32_t, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
+      cells_reduced(cells.rows(), num_vertices_per_cell);
+  std::vector<std::int64_t> vertices;
+  for (std::int32_t c = 0; c < cells.rows(); ++c)
+  {
+    for (std::int32_t v = 0; v < num_vertices_per_cell; ++v)
+    {
+      cells_reduced(c, v) = cells(c, local_vertices[v]);
+      vertices.push_back(cells(c, local_vertices[v]));
+    }
+  }
+  std::sort(vertices.begin(), vertices.end());
+  vertices.erase(std::unique(vertices.begin(), vertices.end()), vertices.end());
+
+  // TODO: Partition cells here
+
+  // // Initialise vertex topology
+  // _topology = std::make_unique<Topology>(type);
+  // _topology->set_global_user_vertices(vertex_indices_global);
+  // _topology->set_index_map(0, vertex_index_map);
+  // const std::int32_t num_vertices
+  //     = vertex_index_map->size_local() + vertex_index_map->num_ghosts();
+
+  // auto c0 =
+  // std::make_shared<graph::AdjacencyList<std::int32_t>>(num_vertices);
+  // _topology->set_connectivity(c0, 0, 0);
+
+  // // Initialise cell topology
+  // Eigen::Array<std::int64_t, Eigen::Dynamic, 1> cell_ghosts(num_ghost_cells);
+  // if ((int)global_cell_indices.size() == (num_cells_local + num_ghost_cells))
+  // {
+  //   std::copy(global_cell_indices.begin() + num_cells_local,
+  //             global_cell_indices.end(), cell_ghosts.data());
+  // }
+
+  // auto cell_index_map = std::make_shared<common::IndexMap>(
+  //     _mpi_comm.comm(), num_cells_local, cell_ghosts, 1);
+  // _topology->set_index_map(tdim, cell_index_map);
+
+  // auto cv =
+  // std::make_shared<graph::AdjacencyList<std::int32_t>>(vertex_cols);
+  // _topology->set_connectivity(cv, tdim, 0);
+
+  // // Global cell indices - construct if none given
+  // if (global_cell_indices.empty())
+  // {
+  //   // FIXME: Should global_cell_indices ever be empty?
+  //   const std::int64_t global_cell_offset
+  //       = MPI::global_offset(comm, num_cells, true);
+  //   std::vector<std::int64_t> global_indices(num_cells, 0);
+  //   std::iota(global_indices.begin(), global_indices.end(),
+  //   global_cell_offset);
+  //   // _topology->set_global_indices(tdim, global_indices);
+  // }
+  // // else
+  // //   _topology->set_global_indices(tdim, global_cell_indices);
+
+  // //
+  // // --- 2. Build geometry dofmap
+
+  // // TODO
+
+  // //
+  // // --- 2. Fetch coordinates for each node
+
+  // // Get number of nodes (global)
+  // const std::uint64_t num_points_global = MPI::sum(comm, points.rows());
+  // _coordinate_dofs = std::make_unique<CoordinateDofs>(coordinate_nodes);
+  // _geometry = std::make_unique<Geometry>(num_points_global, points_received,
+  //                                        node_indices_global);
 }
 //-----------------------------------------------------------------------------
 Mesh::Mesh(const Mesh& mesh)
