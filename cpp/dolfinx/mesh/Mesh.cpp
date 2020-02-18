@@ -152,8 +152,6 @@ Mesh::Mesh(
     : _degree(1), _mpi_comm(comm), _ghost_mode(ghost_mode),
       _unique_id(common::UniqueIdGenerator::id())
 {
-  const int tdim = mesh::cell_dim(type);
-
   // Check size of global cell indices. If empty, construct later.
   if (global_cell_indices.size() > 0
       and global_cell_indices.size() != (std::size_t)cells.rows())
@@ -161,38 +159,38 @@ Mesh::Mesh(
     throw std::runtime_error(
         "Cannot create mesh. Wrong number of global cell indices");
   }
-  // Find degree of mesh
-  // FIXME: degree should probably be in MeshGeometry
-  _degree = mesh::cell_degree(type, cells.cols());
 
-  // Get number of nodes (global)
-  const std::uint64_t num_points_global = MPI::sum(comm, points.rows());
+  //
+  // --- 1. Construct mesh topology
+
+  const int tdim = mesh::cell_dim(type);
 
   // Number of local cells (not including ghosts)
   const std::int32_t num_cells = cells.rows();
   assert(num_ghost_cells <= num_cells);
   const std::int32_t num_cells_local = num_cells - num_ghost_cells;
 
+  // TODO: separate topology and geometry in this step
   // Compute node local-to-global map from global indices, and compute
   // cell topology using new local indices
   const auto [point_index_map, node_indices_global, coordinate_nodes,
               points_received]
       = compute_point_distribution(comm, cells, points);
 
-  _coordinate_dofs = std::make_unique<CoordinateDofs>(coordinate_nodes);
-
-  _geometry = std::make_unique<Geometry>(num_points_global, points_received,
-                                         node_indices_global);
-
-  // Get global vertex information
-  std::vector<std::int64_t> vertex_indices_global;
-  std::shared_ptr<common::IndexMap> vertex_index_map;
-
   // Make cell to vertex connectivity
   const std::int32_t num_vertices_per_cell = mesh::num_cell_vertices(type);
   Eigen::Array<std::int32_t, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
       vertex_cols(cells.rows(), num_vertices_per_cell);
 
+  // Find degree of mesh
+  // FIXME: degree should probably be in MeshGeometry
+  _degree = mesh::cell_degree(type, cells.cols());
+
+  // FIXME: Use ElementDofLayout to get vertex dof indices
+
+  // Get global vertex information
+  std::vector<std::int64_t> vertex_indices_global;
+  std::shared_ptr<common::IndexMap> vertex_index_map;
   if (_degree == 1)
   {
     vertex_indices_global = std::move(node_indices_global);
@@ -234,6 +232,7 @@ Mesh::Mesh(
   _topology->set_index_map(0, vertex_index_map);
   const std::int32_t num_vertices
       = vertex_index_map->size_local() + vertex_index_map->num_ghosts();
+
   auto c0 = std::make_shared<graph::AdjacencyList<std::int32_t>>(num_vertices);
   _topology->set_connectivity(c0, 0, 0);
 
@@ -264,6 +263,20 @@ Mesh::Mesh(
   }
   // else
   //   _topology->set_global_indices(tdim, global_cell_indices);
+
+  //
+  // --- 2. Build geometry dofmap
+
+  // TODO
+
+  //
+  // --- 2. Fetch coordinates for each node
+
+  // Get number of nodes (global)
+  const std::uint64_t num_points_global = MPI::sum(comm, points.rows());
+  _coordinate_dofs = std::make_unique<CoordinateDofs>(coordinate_nodes);
+  _geometry = std::make_unique<Geometry>(num_points_global, points_received,
+                                         node_indices_global);
 }
 //-----------------------------------------------------------------------------
 Mesh::Mesh(const Mesh& mesh)
