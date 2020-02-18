@@ -279,9 +279,6 @@ Mesh::Mesh(
   const int tdim = mesh::cell_dim(dof_layout.cell_type());
 
   //
-  // --- 0. Pre (to be passed in later)
-
-  //
   // --- 1. Construct mesh topology
 
   // Number of local cells
@@ -300,8 +297,8 @@ Mesh::Mesh(
     local_vertices[i] = local_index[0];
   }
 
-  // Create cell-to-vertex connectivity, and build list of vertex indices
-  // (global)
+  // Extract vertex indices, and use to create cell-to-vertex
+  // connectivity, and build list of vertex indices (global)
   Eigen::Array<std::int32_t, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
       cells_reduced(cells.rows(), num_vertices_per_cell);
   std::vector<std::int64_t> vertices;
@@ -316,7 +313,10 @@ Mesh::Mesh(
   std::sort(vertices.begin(), vertices.end());
   vertices.erase(std::unique(vertices.begin(), vertices.end()), vertices.end());
 
-  // TODO: Partition cells here
+  // TODO:
+  // 1. Turn global vertex indices into a contiguous ordering, and get map from
+  // old-to-new
+  // 2. Build Topology
 
   // // Initialise vertex topology
   // _topology = std::make_unique<Topology>(type);
