@@ -21,6 +21,8 @@
 #include <dolfinx/io/cells.h>
 #include <dolfinx/mesh/cell_types.h>
 
+#include <dolfinx/fem/ElementDofLayout.h>
+
 using namespace dolfinx;
 using namespace dolfinx::mesh;
 
@@ -148,7 +150,8 @@ Mesh::Mesh(
     const Eigen::Ref<const Eigen::Array<
         std::int64_t, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>& cells,
     const std::vector<std::int64_t>& global_cell_indices,
-    const GhostMode ghost_mode, std::int32_t num_ghost_cells)
+    const GhostMode ghost_mode, std::int32_t num_ghost_cells,
+    const ufc_dofmap* dofmap)
     : _degree(1), _mpi_comm(comm), _ghost_mode(ghost_mode),
       _unique_id(common::UniqueIdGenerator::id())
 {
@@ -160,10 +163,23 @@ Mesh::Mesh(
         "Cannot create mesh. Wrong number of global cell indices");
   }
 
+  const int tdim = mesh::cell_dim(type);
+
+  //
+  // --- 0. Pre (to be passed in later)
+
+  // FIXME: Only for P1 at the moment
+
+  // Create ElementDofLayout
+  const int num_cell_vertices = mesh::num_cell_vertices(type);
+  std::vector<std::vector<std::set<int>>> entity_dofs(
+      tdim, std::vector<std::set<int>>(num_cell_vertices));
+  for (int i = 0; i < num_cell_vertices; ++i)
+    entity_dofs[0][i].insert(1);
+  fem::ElementDofLayout dof_layout(1, entity_dofs, {}, {}, type, {1, 1, 1, 1});
+
   //
   // --- 1. Construct mesh topology
-
-  const int tdim = mesh::cell_dim(type);
 
   // Number of local cells (not including ghosts)
   const std::int32_t num_cells = cells.rows();
@@ -177,7 +193,7 @@ Mesh::Mesh(
               points_received]
       = compute_point_distribution(comm, cells, points);
 
-  // Make cell to vertex connectivity
+  // Create cell-to-vertex connectivity
   const std::int32_t num_vertices_per_cell = mesh::num_cell_vertices(type);
   Eigen::Array<std::int32_t, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
       vertex_cols(cells.rows(), num_vertices_per_cell);
@@ -187,6 +203,22 @@ Mesh::Mesh(
   _degree = mesh::cell_degree(type, cells.cols());
 
   // FIXME: Use ElementDofLayout to get vertex dof indices
+  std::vector<int> local_vertices(num_cell_vertices);
+  for (int i = 0; i < num_cell_vertices; ++i)
+  {
+    Eigen::Array<int, Eigen::Dynamic, 1> local_index
+        = dof_layout.entity_dofs(0, i);
+    assert(local_index.rows() == 1);
+    local_vertices[i] = local_index[0];
+  }
+
+  // Get vertices (global index) on this process
+  std::vector<std::int64_t> vertices;
+  for (std::int32_t c = 0; c < cells.rows(); ++c)
+    for (std::int32_t v = 0; v < num_cell_vertices; ++v)
+      vertices.push_back(cells(c, local_vertices[v]));
+  std::sort(vertices.begin(), vertices.end());
+  vertices.erase(std::unique(vertices.begin(), vertices.end()), vertices.end());
 
   // Get global vertex information
   std::vector<std::int64_t> vertex_indices_global;

@@ -14,6 +14,8 @@
 #include <string>
 #include <utility>
 
+struct ufc_dofmap;
+
 namespace dolfinx
 {
 
@@ -90,6 +92,7 @@ public:
   /// @param[in] ghost_mode The ghost mode
   /// @param[in] num_ghost_cells Number of ghost cells on this process
   ///                            (must be at end of list of cells)
+  /// @param[in] dofmap UFC dofmap
   Mesh(MPI_Comm comm, mesh::CellType type,
        const Eigen::Ref<const Eigen::Array<
            double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>& points,
@@ -97,7 +100,8 @@ public:
                                            Eigen::Dynamic, Eigen::RowMajor>>&
            cells,
        const std::vector<std::int64_t>& global_cell_indices,
-       const GhostMode ghost_mode, std::int32_t num_ghost_cells = 0);
+       const GhostMode ghost_mode, std::int32_t num_ghost_cells = 0,
+       const ufc_dofmap* dofmap = nullptr);
 
   /// Copy constructor
   /// @param[in] mesh Mesh to be copied
