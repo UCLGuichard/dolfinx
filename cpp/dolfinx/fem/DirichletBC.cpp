@@ -98,7 +98,10 @@ get_remote_bcs1(const common::IndexMap& map,
       dofs_global.data(), send_sizes.data(), send_disp.data(), MPI_INT64_T,
       recv_dofs.data(), recv_sizes.data(), recv_disp.data(), MPI_INT64_T, comm);
 
+  // Build vector of local dof indicies that have been marked by another
+  // process
   std::vector<std::int32_t> dofs = map.global_to_local(recv_dofs, false);
+  dofs.erase(std::remove(dofs.begin(), dofs.end(), -1), dofs.end());
 
   return dofs;
 }
