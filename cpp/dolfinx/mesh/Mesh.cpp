@@ -148,7 +148,8 @@ Mesh::Mesh(
     const Eigen::Ref<const Eigen::Array<
         std::int64_t, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>& cells,
     const std::vector<std::int64_t>& global_cell_indices,
-    const GhostMode ghost_mode, std::int32_t num_ghost_cells)
+    const GhostMode ghost_mode,
+    std::shared_ptr<common::IndexMap> cell_index_map)
     : _degree(1), _mpi_comm(comm), _ghost_mode(ghost_mode),
       _unique_id(common::UniqueIdGenerator::id())
 {
@@ -233,15 +234,6 @@ Mesh::Mesh(
   _topology->set_connectivity(c0, 0, 0);
 
   // Initialise cell topology
-  Eigen::Array<std::int64_t, Eigen::Dynamic, 1> cell_ghosts(num_ghost_cells);
-  if ((int)global_cell_indices.size() == (num_cells_local + num_ghost_cells))
-  {
-    std::copy(global_cell_indices.begin() + num_cells_local,
-              global_cell_indices.end(), cell_ghosts.data());
-  }
-
-  auto cell_index_map = std::make_shared<common::IndexMap>(
-      _mpi_comm.comm(), num_cells_local, cell_ghosts, 1);
   _topology->set_index_map(tdim, cell_index_map);
 
   auto cv = std::make_shared<graph::AdjacencyList<std::int32_t>>(vertex_cols);
