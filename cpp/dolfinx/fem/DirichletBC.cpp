@@ -66,6 +66,7 @@ get_remote_bcs1(const common::IndexMap& map,
       for (int p : sharing_proc)
       {
         auto iter = std::find(neighbours.begin(), neighbours.end(), p);
+        assert(iter != neighbours.end());
         const int np = std::distance(neighbours.begin(), iter);
         int pos
             = std::accumulate(send_sizes.begin(), send_sizes.begin() + np, 0);
@@ -76,11 +77,9 @@ get_remote_bcs1(const common::IndexMap& map,
   }
 
   // Figure out how many entries to receive from each neighbour
-  MPI_Request request;
   std::vector<int> recv_sizes(num_neighbours);
-  MPI_Ineighbor_alltoall(send_sizes.data(), 1, MPI::mpi_type<int>(),
-                         recv_sizes.data(), 1, MPI::mpi_type<int>(), comm,
-                         &request);
+  MPI_Neighbor_alltoall(send_sizes.data(), 1, MPI::mpi_type<int>(),
+                        recv_sizes.data(), 1, MPI::mpi_type<int>(), comm);
 
   std::vector<int> send_disp(num_neighbours + 1, 0);
   std::vector<int> recv_disp(num_neighbours + 1, 0);
@@ -88,8 +87,6 @@ get_remote_bcs1(const common::IndexMap& map,
   shared_dofs.resize(send_disp.back());
   const std::vector<std::int64_t> dofs_global
       = map.local_to_global(shared_dofs, false);
-
-  MPI_Wait(&request, MPI_STATUS_IGNORE);
   std::partial_sum(recv_sizes.begin(), recv_sizes.end(), recv_disp.begin() + 1);
 
   //  May have repeated shared indices with different processes
@@ -119,77 +116,104 @@ std::vector<std::array<std::int32_t, 2>>
 get_remote_bcs2(const common::IndexMap& map0, const common::IndexMap& map1,
                 const std::vector<std::array<std::int32_t, 2>>& dofs_local)
 {
+
+  std::array<MPI_Request, 2> requests;
   // Get number of processes in neighbourhood
-  MPI_Comm comm0 = map0.mpi_comm_neighborhood();
+  MPI_Comm comm = map0.mpi_comm_neighborhood();
   int num_neighbours(-1), outdegree(-2), weighted(-1);
-  MPI_Dist_graph_neighbors_count(comm0, &num_neighbours, &outdegree, &weighted);
+  MPI_Dist_graph_neighbors_count(comm, &num_neighbours, &outdegree, &weighted);
   assert(num_neighbours == outdegree);
 
   // Return early if there are no neighbours
   if (num_neighbours == 0)
     return std::vector<std::array<std::int32_t, 2>>();
 
-  // Figure out how many entries to receive from each neighbour
-  const int num_dofs = 2 * dofs_local.size();
-  std::vector<int> num_dofs_recv(num_neighbours);
-  MPI_Neighbor_allgather(&num_dofs, 1, MPI_INT, num_dofs_recv.data(), 1,
-                         MPI_INT, comm0);
+  std::vector<int> neighbours(num_neighbours), neighbours1(num_neighbours),
+      weights(num_neighbours), weights1(num_neighbours);
+  MPI_Dist_graph_neighbors(comm, num_neighbours, neighbours.data(),
+                           weights.data(), num_neighbours, neighbours1.data(),
+                           weights1.data());
 
-  Eigen::Array<std::int32_t, Eigen::Dynamic, 1> dofs_local0(dofs_local.size()),
-      dofs_local1(dofs_local.size());
-  for (std::size_t i = 0; i < dofs_local.size(); ++i)
+  std::array<std::reference_wrapper<const common::IndexMap>, 2> maps{
+      {map0, map1}};
+  std::array<std::vector<std::int32_t>, 2> dofs_local_i;
+  std::array<std::vector<std::int32_t>, 2> dofs_i;
+  std::array<std::vector<std::int64_t>, 2> recv_dofs_i;
+
+  for (std::size_t i = 0; i < 2; i++)
   {
-    dofs_local0[i] = dofs_local[i][0];
-    dofs_local1[i] = dofs_local[i][1];
+    std::vector<std::int32_t>& dofs_i = dofs_local_i[i];
+    dofs_i.reserve(dofs_local.size());
+    for (std::size_t j = 0; j < dofs_local.size(); ++j)
+      dofs_i[j] = dofs_local[j][i];
   }
 
-  // NOTE: we consider only dofs that we know are shared
-  // Build array of global indices of dofs
-  Eigen::Array<std::int64_t, Eigen::Dynamic, 2, Eigen::RowMajor> dofs_global(
-      dofs_local.size(), 2);
-  dofs_global.col(0) = map0.local_to_global(dofs_local0, false);
-  dofs_global.col(1) = map1.local_to_global(dofs_local1, false);
-
-  // Compute displacements for data to receive. Last entry has total
-  // number of received items.
-  // Note: std::inclusive_scan would be better, but gcc 7.4.0 (Ubuntu
-  // 18.04) does not have full C++17 support
-  std::vector<int> disp(num_neighbours + 1, 0);
-  std::partial_sum(num_dofs_recv.begin(), num_dofs_recv.end(),
-                   disp.begin() + 1);
-  // std::inclusive_scan(num_dofs_recv.begin(), num_dofs_recv.end(),
-  //                     disp.begin() + 1);
-
-  // NOTE: we could use MPI_Neighbor_alltoallv to send only to relevant
-  // processes
-
-  // Send/receive global index of dofs with bcs to all neighbours
-  // std::vector<std::int64_t> dofs_received(disp.back());
-  assert(disp.back() % 2 == 0);
-  Eigen::Array<std::int64_t, Eigen::Dynamic, 2, Eigen::RowMajor> dofs_received(
-      disp.back() / 2, 2);
-  MPI_Neighbor_allgatherv(dofs_global.data(), dofs_global.size(), MPI_INT64_T,
-                          dofs_received.data(), num_dofs_recv.data(),
-                          disp.data(), MPI_INT64_T, comm0);
-
-  std::vector<std::int64_t> dofs_received0(dofs_received.rows()),
-      dofs_received1(dofs_received.rows());
-  for (Eigen::Index i = 0; i < dofs_received.rows(); ++i)
+  for (std::size_t i = 0; i < 2; i++)
   {
-    dofs_received0[i] = dofs_received(i, 0);
-    dofs_received1[i] = dofs_received(i, 1);
+    const common::IndexMap& map = maps[i];
+    std::vector<std::int32_t> send_sizes(num_neighbours, 0);
+    std::vector<std::int32_t> shared_dofs(dofs_local.size());
+    std::map<int, std::set<int>> shared_indices = map.compute_shared_indices();
+
+    for (std::size_t j = 0; j < dofs_local_i[i].size(); j++)
+    {
+      auto it = shared_indices.find(dofs_local_i[i][j]);
+      if (it != shared_indices.end())
+      {
+        std::set<int>& sharing_proc = it->second;
+        for (int p : sharing_proc)
+        {
+          auto iter = std::find(neighbours.begin(), neighbours.end(), p);
+          assert(iter != neighbours.end());
+          const int np = std::distance(neighbours.begin(), iter);
+          int pos
+              = std::accumulate(send_sizes.begin(), send_sizes.begin() + np, 0);
+          shared_dofs.insert(shared_dofs.begin() + pos, dofs_local_i[i][j]);
+          send_sizes[np]++;
+        }
+      }
+    }
+    // Figure out how many entries to receive from each neighbour
+    std::vector<int> recv_sizes(num_neighbours);
+    MPI_Neighbor_alltoall(send_sizes.data(), 1, MPI::mpi_type<int>(),
+                          recv_sizes.data(), 1, MPI::mpi_type<int>(), comm);
+
+    std::vector<int> send_disp(num_neighbours + 1, 0);
+    std::vector<int> recv_disp(num_neighbours + 1, 0);
+    std::partial_sum(send_sizes.begin(), send_sizes.end(),
+                     send_disp.begin() + 1);
+    shared_dofs.resize(send_disp.back());
+    const std::vector<std::int64_t> dofs_global
+        = map.local_to_global(shared_dofs, false);
+    std::partial_sum(recv_sizes.begin(), recv_sizes.end(),
+                     recv_disp.begin() + 1);
+
+    //  May have repeated shared indices with different processes
+    std::vector<std::int64_t>& recv_dofs = recv_dofs_i[i];
+    recv_dofs.reserve(recv_disp.back());
+    MPI_Ineighbor_alltoallv(dofs_global.data(), send_sizes.data(),
+                            send_disp.data(), MPI_INT64_T, recv_dofs.data(),
+                            recv_sizes.data(), recv_disp.data(), MPI_INT64_T,
+                            comm, &requests[i]);
   }
 
-  std::vector<std::int32_t> dofs0 = map0.global_to_local(dofs_received0, false);
-  std::vector<std::int32_t> dofs1 = map1.global_to_local(dofs_received1, false);
-
-  dofs0.erase(std::remove(dofs0.begin(), dofs0.end(), -1), dofs0.end());
-  dofs1.erase(std::remove(dofs1.begin(), dofs1.end(), -1), dofs1.end());
+  // Build vector of local dof indicies that have been marked by another
+  // process
+  for (std::size_t i = 0; i < 2; i++)
+  {
+    int index;
+    MPI_Waitany(2, requests.data(), &index, MPI_STATUS_IGNORE);
+    const common::IndexMap& map = maps[index];
+    dofs_i[index] = map.global_to_local(recv_dofs_i[index], false);
+    dofs_i[index].erase(
+        std::remove(dofs_i[index].begin(), dofs_i[index].end(), -1),
+        dofs_i[index].end());
+  }
 
   std::vector<std::array<std::int32_t, 2>> dofs;
-  dofs.reserve(dofs0.size());
-  for (std::size_t i = 0; i < dofs0.size(); ++i)
-    dofs.push_back({dofs0[i], dofs1[i]});
+  dofs.reserve(dofs_i[0].size());
+  for (std::size_t i = 0; i < dofs_i[0].size(); ++i)
+    dofs.push_back({dofs_i[0][i], dofs_i[1][i]});
 
   return dofs;
 }
