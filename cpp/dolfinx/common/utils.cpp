@@ -25,3 +25,24 @@ std::string dolfinx::common::indent(std::string block)
   return s.str();
 }
 //-----------------------------------------------------------------------------
+// std::vector<std::int64_t> dolfinx::common::transform_to_contiguous(
+//     MPI_Comm comm, const std::vector<std::int64_t>& indices)
+// {
+//   // Get max index across all processes
+//   auto it = std::max_element(indices.begin(), indices.end());
+//   std::int64_t max = (it != indices.end()) ? *it : -1;
+//   max = dolfinx::MPI::max(comm, max);
+//   assert(max >= 0);
+
+//   // Divide (0, max) equally across processes
+//   const int size = MPI::size(comm);
+//   std::vector<std::int64_t> ranges(size);
+//   MPI::all_gather(comm, (std::int64_t)points.rows(), ranges);
+//   // for (std::size_t i = 1; i < ranges.size(); ++i)
+//   //   ranges[i] += ranges[i - 1];
+//   // ranges.insert(ranges.begin(), 0);
+
+
+//   return std::vector<std::int64_t>();
+// }
+//-----------------------------------------------------------------------------

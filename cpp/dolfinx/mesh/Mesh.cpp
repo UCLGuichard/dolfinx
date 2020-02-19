@@ -276,13 +276,13 @@ Mesh::Mesh(
         std::int64_t, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>& cells)
     : _degree(1), _mpi_comm(comm), _unique_id(common::UniqueIdGenerator::id())
 {
-  const int tdim = mesh::cell_dim(dof_layout.cell_type());
+  // const int tdim = mesh::cell_dim(dof_layout.cell_type());
 
   //
   // --- 1. Construct mesh topology
 
   // Number of local cells
-  const std::int32_t num_cells = cells.rows();
+  // const std::int32_t num_cells = cells.rows();
 
   const std::int32_t num_vertices_per_cell
       = mesh::num_cell_vertices(dof_layout.cell_type());
@@ -297,8 +297,8 @@ Mesh::Mesh(
     local_vertices[i] = local_index[0];
   }
 
-  // Extract vertex indices, and use to create cell-to-vertex
-  // connectivity, and build list of vertex indices (global)
+  // Extract global vertex indices, and use to create a cell-to-vertex
+  // connectivity array, and build list of vertex indices (global)
   Eigen::Array<std::int32_t, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
       cells_reduced(cells.rows(), num_vertices_per_cell);
   std::vector<std::int64_t> vertices;
@@ -313,9 +313,25 @@ Mesh::Mesh(
   std::sort(vertices.begin(), vertices.end());
   vertices.erase(std::unique(vertices.begin(), vertices.end()), vertices.end());
 
+  // TODO: Turn global vertex indices into a contiguous ordering (IndexMap), and
+  // get map from old-to-new
+
+  // Get max index across all processes
+  auto it = std::max_element(vertices.begin(), vertices.end());
+  std::int64_t max = (it != vertices.end()) ? *it : -1;
+  max = dolfinx::MPI::max(comm, max);
+  assert(max >= 0);
+
+  // Divide (0, max) equally across processes
+  const int size = MPI::size(comm);
+  std::vector<std::int64_t> ranges(size);
+  MPI::all_gather(comm, (std::int64_t)cells_reduced.rows(), ranges);
+  // for (std::size_t i = 1; i < ranges.size(); ++i)
+  //   ranges[i] += ranges[i - 1];
+  // ranges.insert(ranges.begin(), 0);
+
   // TODO:
-  // 1. Turn global vertex indices into a contiguous ordering, and get map from
-  // old-to-new
+  //
   // 2. Build Topology
 
   // // Initialise vertex topology

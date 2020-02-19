@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include "MPI.h"
 #include <boost/functional/hash.hpp>
 #include <cstring>
 #include <dolfinx/common/MPI.h>
@@ -82,5 +83,10 @@ std::size_t hash_global(const MPI_Comm mpi_comm, const T& x)
   MPI::broadcast(mpi_comm, global_hash);
   return global_hash;
 }
+
+// std::vector<std::int64_t>
+// transform_to_contiguous(MPI_Comm comm,
+//                         const std::vector<std::int64_t>& indices);
+
 } // namespace common
 } // namespace dolfinx
