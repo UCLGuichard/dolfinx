@@ -17,7 +17,6 @@
 #include <cstdint>
 #include <dolfinx/common/IndexMap.h>
 #include <dolfinx/common/MPI.h>
-#include <dolfinx/common/Set.h>
 #include <dolfinx/common/Timer.h>
 #include <dolfinx/common/log.h>
 #include <dolfinx/graph/CSRGraph.h>
@@ -770,9 +769,6 @@ mesh::Mesh Partitioning::build_from_partition(
   if (all_ghosts == 0 and ghost_mode != mesh::GhostMode::none)
     throw std::runtime_error("Ghost cell information not available");
 
-  // Topological dimension
-  const int tdim = mesh::cell_dim(cell_type);
-
   // Send cells to owning process according to cell_partition, and
   // receive cells that belong to this process. Also compute auxiliary
   // data related to sharing.
@@ -809,18 +805,6 @@ mesh::Mesh Partitioning::build_from_partition(
 
   mesh::Mesh mesh(comm, cell_type, points, new_cell_vertices,
                   new_global_cell_indices, ghost_mode, num_ghosts);
-
-  if (ghost_mode != mesh::GhostMode::none)
-  {
-    // Assign map of shared cells (only needed for ghost cells)
-    mesh.topology().set_shared_entities(tdim, shared_cells);
-  }
-
-  // Initialize required entities and connectivity
-  mesh.create_entities(tdim - 1);
-  mesh.create_connectivity(tdim - 1, tdim);
-  DistributedMeshTools::init_facet_cell_connections(mesh.mpi_comm(),
-                                                    mesh.topology());
 
   return mesh;
 }
