@@ -324,7 +324,7 @@ void SparsityPattern::assemble()
   MPI_Dist_graph_neighbors_count(comm, &num_neighbors, &outdegree, &weighted);
   assert(num_neighbors == outdegree);
 
-  // Figure out how much data to receive from each neighbour
+  // Figure out how much data to receive from each neighbor
   const int num_my_rows = ghost_data.size();
   std::vector<int> num_rows_recv(num_neighbors);
   MPI_Neighbor_allgather(&num_my_rows, 1, MPI_INT, num_rows_recv.data(), 1,
@@ -340,7 +340,7 @@ void SparsityPattern::assemble()
   // maybe the number of rows exchanged in the neighborhood are
   // relatively small that MPI_Neighbor_allgatherv is simpler.
 
-  // Send all unowned rows to neighbours, and receive rows from
+  // Send all unowned rows to neighbors, and receive rows from
   // neighbors
   std::vector<std::int64_t> ghost_data_received(disp.back());
   MPI_Neighbor_allgatherv(ghost_data.data(), ghost_data.size(), MPI_INT64_T,

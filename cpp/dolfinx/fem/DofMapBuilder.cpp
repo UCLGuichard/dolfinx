@@ -411,15 +411,8 @@ std::vector<std::int64_t> get_global_indices(
       std::partial_sum(num_indices_recv.begin(), num_indices_recv.end(),
                        disp.begin() + 1);
 
-<<<<<<< HEAD
-      // Send/receive global index of dofs with bcs to all neighbors
-      std::vector<std::int64_t> dofs_received(disp.back());
-      MPI_Neighbor_allgatherv(global[d].data(), global[d].size(), MPI_INT64_T,
-                              dofs_received.data(), num_indices_recv.data(),
-                              disp.data(), MPI_INT64_T, comm);
-=======
       // TODO: use MPI_Ineighbor_alltoallv
-      // Send global index of dofs with bcs to all neighbours
+      // Send global index of dofs with bcs to all neighbors
       std::vector<std::int64_t>& dofs_received = all_dofs_received[d];
       dofs_received.resize(disp.back());
       MPI_Ineighbor_allgatherv(global[d].data(), global[d].size(), MPI_INT64_T,
@@ -429,7 +422,6 @@ std::vector<std::int64_t> get_global_indices(
       requests_dim.push_back(d);
     }
   }
->>>>>>> f3b20b410a7925030434807e9e22f8682b774485
 
   // Build  [local_new - num_owned] -> global old array  broken down by
   // dimension

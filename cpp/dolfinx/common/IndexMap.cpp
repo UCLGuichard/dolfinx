@@ -347,25 +347,25 @@ std::map<int, std::set<int>> IndexMap::compute_shared_indices() const
 {
   std::map<int, std::set<int>> shared_indices;
 
-  // Get neighbour processes
+  // Get neighbor processes
   int indegree(-1), outdegree(-2), weighted(-1);
-  MPI_Dist_graph_neighbors_count(_neighbour_comm, &indegree, &outdegree,
+  MPI_Dist_graph_neighbors_count(_neighbor_comm, &indegree, &outdegree,
                                  &weighted);
   assert(indegree == outdegree);
-  std::vector<int> neighbours(indegree), neighbours1(indegree),
-      weights(indegree), weights1(indegree);
+  std::vector<int> neighbors(indegree), neighbors1(indegree), weights(indegree),
+      weights1(indegree);
 
-  MPI_Dist_graph_neighbors(_neighbour_comm, indegree, neighbours.data(),
-                           weights.data(), outdegree, neighbours1.data(),
+  MPI_Dist_graph_neighbors(_neighbor_comm, indegree, neighbors.data(),
+                           weights.data(), outdegree, neighbors1.data(),
                            weights1.data());
 
-  assert(neighbours.size() == _forward_sizes.size());
+  assert(neighbors.size() == _forward_sizes.size());
 
   // Get sharing of all owned indices
   int c = 0;
   for (std::size_t i = 0; i < _forward_sizes.size(); ++i)
   {
-    int p = neighbours[i];
+    int p = neighbors[i];
     for (int j = 0; j < _forward_sizes[i]; ++j)
     {
       int idx = _forward_indices[c];
@@ -395,7 +395,7 @@ std::map<int, std::set<int>> IndexMap::compute_shared_indices() const
 
   std::vector<int> recv_sharing_offsets;
   std::vector<std::int64_t> recv_sharing_data;
-  MPI::neighbor_all_to_all(_neighbour_comm, fwd_sharing_offsets,
+  MPI::neighbor_all_to_all(_neighbor_comm, fwd_sharing_offsets,
                            fwd_sharing_data, recv_sharing_offsets,
                            recv_sharing_data);
 
@@ -404,7 +404,7 @@ std::map<int, std::set<int>> IndexMap::compute_shared_indices() const
   {
     int idx = size_local() + i;
     const int np = _ghost_owners[i];
-    int p = neighbours[np];
+    int p = neighbors[np];
     int& rp = recv_sharing_offsets[np];
     int ns = recv_sharing_data[rp];
     ++rp;
